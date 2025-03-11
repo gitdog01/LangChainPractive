@@ -5,6 +5,9 @@
 // RAG(Retrieval Augmented Generation): 외부 데이터를 검색하여 LLM의 응답을 강화하는 기법
 // =========================================================================
 
+// LangSmith 콜백 백그라운드 처리 설정 (LangChain 경고 해결을 위해 추가)
+process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
+
 // 기본 의존성 로드
 require("dotenv").config(); // .env 파일에서 환경 변수 로드
 const express = require("express"); // 웹 서버 프레임워크
@@ -16,11 +19,11 @@ const hljs = require("highlight.js"); // 코드 구문 강조
 
 // LangChain 관련 의존성 로드
 const { ChatOpenAI } = require("@langchain/openai"); // OpenAI 채팅 모델 인터페이스
-const { PromptTemplate } = require("langchain/prompts"); // 프롬프트 템플릿 (LLM에게 지시하는 형식)
-const { RunnableSequence } = require("langchain/schema/runnable"); // 실행 가능한 컴포넌트 연결
+const { PromptTemplate } = require("@langchain/core/prompts"); // 프롬프트 템플릿 (LLM에게 지시하는 형식)
+const { RunnableSequence } = require("@langchain/core/runnables"); // 실행 가능한 컴포넌트 연결
 const { RecursiveCharacterTextSplitter } = require("langchain/text_splitter"); // 텍스트를 청크로 분할
 const { MemoryVectorStore } = require("langchain/vectorstores/memory"); // 메모리 기반 벡터 저장소
-const { OpenAIEmbeddings } = require("langchain/embeddings/openai"); // OpenAI 임베딩 모델
+const { OpenAIEmbeddings } = require("@langchain/openai"); // OpenAI 임베딩 모델
 
 // =========================================================================
 // 환경변수 확인
@@ -45,12 +48,24 @@ app.use(express.urlencoded({ extended: true })); // URL 인코딩된 요청 본�
 // LangChain 컴포넌트 초기화
 // =========================================================================
 
-// OpenAI 모델 초기화 - ChatGPT를 사용하여 실제 응답 생성
-const llm = new ChatOpenAI({
-  openAIApiKey: apiKey,
-  modelName: "gpt-3.5-turbo", // 또는 'gpt-4' 등 다른 모델 사용 가능
-  temperature: 0.7, // 0에 가까울수록 결정적, 1에 가까울수록 창의적 응답
-});
+// 여러 OpenAI 모델 초기화
+const models = {
+  "gpt-4o": new ChatOpenAI({
+    openAIApiKey: apiKey,
+    modelName: "gpt-4o",
+    temperature: 0.1,
+  }),
+  "gpt-o3-mini": new ChatOpenAI({
+    openAIApiKey: apiKey,
+    modelName: "o3-mini-2025-01-31",
+  }),
+  // o3 는 temperature를 지원하지 않음
+  "gpt-o1": new ChatOpenAI({
+    openAIApiKey: apiKey,
+    modelName: "o1-2024-12-17",
+  }),
+  // o1 은 temperature를 지원하지 않음
+};
 
 // OpenAI 임베딩 모델 초기화 - 텍스트를 벡터로 변환
 // 임베딩: 텍스트를 수치 벡터로 변환하여 의미적 유사성을 계산 가능하게 함
@@ -67,6 +82,13 @@ const textSplitter = new RecursiveCharacterTextSplitter({
 
 // Target 소스 코드 디렉토리 경로
 const TARGET_CODE_DIR = "./Target";
+
+// 모델 사용 여부를 제어하는 플래그
+const MODEL_CONFIG = {
+  "gpt-4o": { enabled: true },
+  "gpt-o3-mini": { enabled: true },
+  "gpt-o1": { enabled: false }, // 비용 절감을 위해 임시로 비활성화
+};
 
 // =========================================================================
 // 소스 코드 로딩 및 벡터 저장소 생성 함수
@@ -184,14 +206,15 @@ const codeRecommendationPrompt = new PromptTemplate({
 2. **변경 내용**: 어떤 변경을 해야 하는지 설명
 3. **코드 변경사항**: 구체적인 코드 변경 내용을 코드 블록으로 표시
 
-코드 변경 내용은 가능한 한 diff 형식으로 표시해주세요. 예시:
+코드 변경 내용은 반드시 diff 형식으로 표시해야 합니다. 그래야 사용자가 어떤 부분이 추가되고 삭제되는지 명확하게 볼 수 있습니다:
 
 \`\`\`diff
-- // 삭제될 코드
-+ // 추가될 코드
+- // 삭제될 코드 (빨간색 배경으로 표시됩니다)
++ // 추가될 코드 (초록색 배경으로 표시됩니다)
 \`\`\`
 
 각 섹션을 마크다운 헤딩(##)으로 구분하고, 전체 응답이 마크다운으로 쉽게 파싱될 수 있도록 해주세요.
+코드 변경을 할 때는 가능한 한 전체 맥락을 제공하기 위해 변경된 라인 주변의 코드도 일부 포함해주세요.
 `,
   inputVariables: ["relevantCode", "userRequest"],
 });
@@ -292,22 +315,53 @@ app.post("/api/recommend-code", async (req, res) => {
 
     console.log(`🔎 ${searchResults.length}개의 관련 코드 청크를 찾았습니다.`);
 
-    // RunnableSequence를 사용하여 프롬프트와 LLM을 연결
-    // RunnableSequence: 여러 컴포넌트를 연결하여 순차적으로 실행하는 객체
-    const chain = RunnableSequence.from([codeRecommendationPrompt, llm]);
+    // 각 모델별로 체인 실행 (병렬 처리)
+    console.log("🤖 여러 모델을 사용하여 코드 추천 생성 중...");
 
-    console.log("🤖 코드 추천 생성 중...");
+    // 모든 모델의 결과를 병렬로 가져오기
+    const modelResults = await Promise.all(
+      Object.entries(models).map(async ([modelName, model]) => {
+        if (MODEL_CONFIG[modelName].enabled) {
+          try {
+            console.log(`모델 ${modelName} 실행 중...`);
+            const chain = RunnableSequence.from([
+              codeRecommendationPrompt,
+              model,
+            ]);
+            const response = await chain.invoke({
+              relevantCode,
+              userRequest: request,
+            });
+            console.log(`✅ 모델 ${modelName} 실행 완료`);
 
-    // 체인 실행하여 추천 생성
-    const response = await chain.invoke({
-      relevantCode,
-      userRequest: request,
-    });
+            // 모델별 응답 반환
+            return {
+              modelName,
+              recommendation: response.content,
+            };
+          } catch (error) {
+            console.error(`❌ 모델 ${modelName} 실행 중 오류:`, error);
+            return {
+              modelName,
+              recommendation: `오류: ${
+                error.message || "알 수 없는 오류가 발생했습니다."
+              }`,
+              error: true,
+            };
+          }
+        } else {
+          // 비활성화된 모델은 메시지만 반환
+          console.log(`⏸️ 모델 ${modelName}는 현재 비활성화되어 있습니다.`);
+          return {
+            modelName,
+            recommendation: `이 모델(${modelName})은 현재 비용 절약을 위해 임시로 비활성화되어 있습니다.`,
+            disabled: true,
+          };
+        }
+      })
+    );
 
-    console.log("✅ 코드 추천 생성 완료");
-
-    // LLM 응답에서 마크다운 형식의 텍스트 추출
-    const recommendation = response.content;
+    console.log("✅ 모든 모델의 코드 추천 생성 완료");
 
     // 유사도 점수를 포함한 관련 파일 정보 준비
     const relevantFilesInfo = searchResultsWithScore.map(([doc, score]) => ({
@@ -322,7 +376,7 @@ app.post("/api/recommend-code", async (req, res) => {
 
     // 응답 전송
     res.json({
-      recommendation,
+      modelResults, // 각 모델별 결과
       relevantFiles: [
         ...new Set(searchResults.map((doc) => doc.metadata.source)),
       ], // 중복 제거된 파일 경로
@@ -349,7 +403,7 @@ app.get("/", (req, res) => {
       <style>
         body {
           font-family: 'Pretendard', Arial, sans-serif;
-          max-width: 1000px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 20px;
         }
@@ -360,9 +414,15 @@ app.get("/", (req, res) => {
           display: flex;
           gap: 20px;
         }
-        .left-panel,
+        .left-panel {
+          flex: 0 0 350px;
+          width: 350px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 20px;
+        }
         .right-panel {
-          flex: 1;
+          flex: 2;
           border: 1px solid #ddd;
           border-radius: 8px;
           padding: 20px;
@@ -401,13 +461,65 @@ app.get("/", (req, res) => {
         .refresh-btn:hover {
           background-color: #0b7dda;
         }
-        #recommendation,
+        #recommendation-tabs,
         #relevantFiles {
           margin-top: 20px;
-          padding: 15px;
           background-color: #f9f9f9;
           border-radius: 4px;
           overflow: auto;
+        }
+        .tab-container {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+        }
+        .tab-nav {
+          display: flex;
+          border-bottom: 1px solid #ddd;
+          background-color: #f1f1f1;
+          overflow-x: auto;
+        }
+        .tab-btn {
+          padding: 10px 15px;
+          background-color: transparent;
+          border: none;
+          border-right: 1px solid #ddd;
+          cursor: pointer;
+          white-space: nowrap;
+          color: #333;
+          font-weight: bold;
+        }
+        .tab-btn:hover {
+          background-color: #e0e0e0;
+        }
+        .tab-btn.active {
+          background-color: #fff;
+          border-bottom: 3px solid #4caf50;
+        }
+        .tab-content {
+          display: none;
+          padding: 15px;
+        }
+        .tab-content.active {
+          display: block;
+        }
+        .model-indicator {
+          display: inline-block;
+          padding: 3px 7px;
+          border-radius: 3px;
+          font-size: 12px;
+          font-weight: bold;
+          margin-left: 8px;
+          color: white;
+        }
+        .model-gpt-4o {
+          background-color: #8A2BE2; /* BlueViolet */
+        }
+        .model-gpt-o3-mini {
+          background-color: #FF8C00; /* DarkOrange */
+        }
+        .model-gpt-o1 {
+          background-color: #20B2AA; /* LightSeaGreen */
         }
         .file-list {
           margin-top: 10px;
@@ -457,15 +569,32 @@ app.get("/", (req, res) => {
           margin: 0;
           overflow: auto;
         }
+        .model-time {
+          color: #666;
+          font-size: 12px;
+          margin-top: 5px;
+          text-align: right;
+        }
         
         /* Diff 스타일 */
-        .hljs-addition {
-          background-color: #e6ffed;
-          color: #22863a;
+        .hljs-addition,
+        .markdown pre code .hljs-addition,
+        pre .hljs-addition,
+        code .hljs-addition {
+          background-color: #95f295; /* 더 진한 초록색 배경 */
+          color: #1a7f1a;
+          display: inline-block;
+          width: 100%;
         }
-        .hljs-deletion {
-          background-color: #ffeef0;
-          color: #cb2431;
+        
+        .hljs-deletion,
+        .markdown pre code .hljs-deletion,
+        pre .hljs-deletion,
+        code .hljs-deletion {
+          background-color: #ff9999; /* 더 진한 빨간색 배경 */
+          color: #b30000;
+          display: inline-block;
+          width: 100%;
         }
         
         /* 마크다운 스타일 */
@@ -503,6 +632,65 @@ app.get("/", (req, res) => {
         .markdown img {
           max-width: 100%;
         }
+
+        /* 로딩 애니메이션 */
+        .loading {
+          text-align: center;
+          padding: 20px;
+        }
+        .loading-spinner {
+          display: inline-block;
+          width: 50px;
+          height: 50px;
+          border: 5px solid rgba(0, 0, 0, 0.1);
+          border-radius: 50%;
+          border-top-color: #4caf50;
+          animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .model-status {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 15px;
+          background-color: #f9f9f9;
+          border-radius: 4px;
+          margin-top: 10px;
+        }
+        .model-status-item {
+          display: flex;
+          align-items: center;
+        }
+        .status-dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          margin-right: 8px;
+        }
+        .status-pending {
+          background-color: #ffb700;
+        }
+        .status-completed {
+          background-color: #4caf50;
+        }
+        .status-error {
+          background-color: #f44336;
+        }
+        .status-disabled {
+          background-color: #9e9e9e; /* 회색으로 비활성화 표시 */
+        }
+        .disabled-model {
+          color: #757575;
+          padding: 15px;
+          background-color: #f5f5f5;
+          border-left: 4px solid #9e9e9e;
+          margin-bottom: 20px;
+          font-style: italic;
+        }
       </style>
     </head>
     <body>
@@ -513,16 +701,58 @@ app.get("/", (req, res) => {
         <div class="left-panel">
           <div class="form-group">
             <label for="request">기능 요청 (구현하고 싶은 기능을 자세히 설명해주세요):</label>
-            <textarea id="request" placeholder="예: '사용자 인증 기능을 추가하고 싶습니다...'"></textarea>
+            <textarea id="request" placeholder="예: '사용자 인증 기능을 추가하고 싶습니다...'">링크의 썸네일을 가져올때 해당 페이지가 403 응답을 주면 썸네일이나 타이틀 없이 링크만 저장하도록 수정해줘.</textarea>
           </div>
           <button onclick="getCodeRecommendation()">코드 추천 받기</button>
           <button class="refresh-btn" onclick="refreshVectorStore()">벡터 저장소 갱신</button>
           <p><small>참고: Target 디렉토리에 코드 파일을 추가/수정한 후 '벡터 저장소 갱신' 버튼을 클릭하세요.</small></p>
+          
+          <div id="model-status" class="model-status" style="display: none;">
+            <div class="model-status-item">
+              <div class="status-dot status-pending" id="status-gpt-4o"></div>
+              <span>GPT-4o</span>
+            </div>
+            <div class="model-status-item">
+              <div class="status-dot status-pending" id="status-gpt-o3-mini"></div>
+              <span>GPT-o3-mini</span>
+            </div>
+            <div class="model-status-item">
+              <div class="status-dot status-pending" id="status-gpt-o1"></div>
+              <span>GPT-o1</span>
+            </div>
+          </div>
         </div>
         
         <div class="right-panel">
           <h2>코드 추천 결과</h2>
-          <div id="recommendation" class="markdown">여기에 코드 추천이 표시됩니다...</div>
+          <div id="recommendation-tabs" class="tab-container">
+            <div class="tab-nav">
+              <button class="tab-btn active" data-tab="gpt-4o">GPT-4o</button>
+              <button class="tab-btn" data-tab="gpt-o3-mini">GPT-o3-mini</button>
+              <button class="tab-btn" data-tab="gpt-o1">GPT-o1</button>
+            </div>
+            <div id="tab-gpt-4o" class="tab-content active markdown">
+              <div class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>GPT-4o 모델로 코드 추천 생성 중...</p>
+              </div>
+              <div class="content">여기에 GPT-4o 코드 추천이 표시됩니다...</div>
+            </div>
+            <div id="tab-gpt-o3-mini" class="tab-content markdown">
+              <div class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>GPT-o3-mini 모델로 코드 추천 생성 중...</p>
+              </div>
+              <div class="content">여기에 GPT-o3-mini 코드 추천이 표시됩니다...</div>
+            </div>
+            <div id="tab-gpt-o1" class="tab-content markdown">
+              <div class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>GPT-o1 모델로 코드 추천 생성 중...</p>
+              </div>
+              <div class="content">여기에 GPT-o1 코드 추천이 표시됩니다...</div>
+            </div>
+          </div>
           
           <h3>관련 파일</h3>
           <div id="relevantFiles">관련 파일이 여기에 표시됩니다...</div>
@@ -542,6 +772,28 @@ app.get("/", (req, res) => {
           } else {
             console.warn('highlight.js가 로드되지 않았습니다.');
           }
+          
+          // 탭 버튼에 클릭 이벤트 추가
+          document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              // 모든 탭 버튼에서 active 클래스 제거
+              document.querySelectorAll('.tab-btn').forEach(function(b) {
+                b.classList.remove('active');
+              });
+              
+              // 모든 탭 컨텐츠에서 active 클래스 제거
+              document.querySelectorAll('.tab-content').forEach(function(content) {
+                content.classList.remove('active');
+              });
+              
+              // 클릭한 버튼에 active 클래스 추가
+              this.classList.add('active');
+              
+              // 해당 탭 컨텐츠에 active 클래스 추가
+              const tabId = this.getAttribute('data-tab');
+              document.getElementById('tab-' + tabId).classList.add('active');
+            });
+          });
         });
         
         // 마크다운 설정
@@ -568,9 +820,33 @@ app.get("/", (req, res) => {
           smartypants: true
         });
         
+        // 모델 상태 업데이트 함수
+        function updateModelStatus(modelName, status) {
+          const statusElement = document.getElementById('status-' + modelName);
+          if (statusElement) {
+            statusElement.className = 'status-dot';
+            if (status === 'pending') {
+              statusElement.classList.add('status-pending');
+            } else if (status === 'completed') {
+              statusElement.classList.add('status-completed');
+            } else if (status === 'error') {
+              statusElement.classList.add('status-error');
+            } else if (status === 'disabled') {
+              statusElement.classList.add('status-disabled');
+            }
+          }
+        }
+        
+        // 모든 모델 상태 초기화
+        function resetAllModelStatus() {
+          document.getElementById('model-status').style.display = 'flex';
+          updateModelStatus('gpt-4o', 'pending');
+          updateModelStatus('gpt-o3-mini', 'pending');
+          updateModelStatus('gpt-o1', 'pending');
+        }
+        
         async function getCodeRecommendation() {
           const request = document.getElementById('request').value;
-          const recommendationDiv = document.getElementById('recommendation');
           const relevantFilesDiv = document.getElementById('relevantFiles');
           
           if (!request) {
@@ -578,7 +854,20 @@ app.get("/", (req, res) => {
             return;
           }
           
-          recommendationDiv.textContent = '코드 추천을 불러오는 중...';
+          // 모델 상태 표시 초기화
+          resetAllModelStatus();
+          
+          // 각 모델 탭 로딩 상태로 변경
+          ['gpt-4o', 'gpt-o3-mini', 'gpt-o1'].forEach(modelName => {
+            const tabContent = document.getElementById('tab-' + modelName);
+            const loadingDiv = tabContent.querySelector('.loading');
+            const contentDiv = tabContent.querySelector('.content');
+            
+            loadingDiv.style.display = 'block';
+            contentDiv.style.display = 'none';
+            contentDiv.innerHTML = '';
+          });
+          
           relevantFilesDiv.textContent = '관련 파일을 검색 중...';
           
           try {
@@ -593,21 +882,47 @@ app.get("/", (req, res) => {
             const data = await response.json();
             
             if (response.ok) {
-              // 마크다운 렌더링
-              recommendationDiv.innerHTML = marked.parse(data.recommendation);
-              
-              // 코드 구문 강조 적용 (highlight.js가 로드되었는지 확인)
-              setTimeout(function() {
-                if (typeof hljs !== 'undefined') {
-                  try {
-                    document.querySelectorAll('#recommendation pre code').forEach(function(block) {
-                      hljs.highlightElement(block);
-                    });
-                  } catch (e) {
-                    console.error('코드 강조 적용 중 오류:', e);
-                  }
+              // 각 모델별 결과 처리
+              data.modelResults.forEach(result => {
+                const modelName = result.modelName;
+                const tabContent = document.getElementById('tab-' + modelName);
+                const loadingDiv = tabContent.querySelector('.loading');
+                const contentDiv = tabContent.querySelector('.content');
+                
+                loadingDiv.style.display = 'none';
+                contentDiv.style.display = 'block';
+                
+                if (result.error) {
+                  contentDiv.innerHTML = '<div class="error">오류: ' + result.recommendation + '</div>';
+                  updateModelStatus(modelName, 'error');
+                } else if (result.disabled) {
+                  contentDiv.innerHTML = '<div class="disabled-model">' + result.recommendation + '</div>';
+                  updateModelStatus(modelName, 'disabled');
+                } else {
+                  // 마크다운 렌더링
+                  contentDiv.innerHTML = marked.parse(result.recommendation);
+                  updateModelStatus(modelName, 'completed');
+                  
+                  // 현재 시간 표시
+                  const timeDiv = document.createElement('div');
+                  timeDiv.className = 'model-time';
+                  timeDiv.textContent = '생성 시간: ' + new Date().toLocaleTimeString();
+                  contentDiv.appendChild(timeDiv);
+                  
+                  // 코드 구문 강조 적용 (highlight.js가 로드되었는지 확인)
+                  setTimeout(function() {
+                    if (typeof hljs !== 'undefined') {
+                      try {
+                        tabContent.querySelectorAll('pre code').forEach(function(block) {
+                          hljs.highlightElement(block);
+                        });
+                      } catch (e) {
+                        console.error('코드 강조 적용 중 오류:', e);
+                      }
+                    }
+                  }, 100);
                 }
-              }, 100); // 약간의 딜레이를 두어 DOM이 업데이트된 후 적용
+              });
               
               // 관련 파일 표시
               if (data.relevantFiles && data.relevantFiles.length > 0) {
@@ -643,19 +958,42 @@ app.get("/", (req, res) => {
                 relevantFilesDiv.textContent = '관련 파일이 없습니다.';
               }
             } else {
-              recommendationDiv.textContent = '오류: ' + data.error;
+              // 모든 모델 탭에 에러 표시
+              ['gpt-4o', 'gpt-o3-mini', 'gpt-o1'].forEach(modelName => {
+                const tabContent = document.getElementById('tab-' + modelName);
+                const loadingDiv = tabContent.querySelector('.loading');
+                const contentDiv = tabContent.querySelector('.content');
+                
+                loadingDiv.style.display = 'none';
+                contentDiv.style.display = 'block';
+                contentDiv.innerHTML = '<div class="error">오류: ' + data.error + '</div>';
+                updateModelStatus(modelName, 'error');
+              });
+              
               relevantFilesDiv.textContent = '오류가 발생했습니다.';
             }
           } catch (error) {
-            recommendationDiv.textContent = '네트워크 오류가 발생했습니다.';
+            // 모든 모델 탭에 에러 표시
+            ['gpt-4o', 'gpt-o3-mini', 'gpt-o1'].forEach(modelName => {
+              const tabContent = document.getElementById('tab-' + modelName);
+              const loadingDiv = tabContent.querySelector('.loading');
+              const contentDiv = tabContent.querySelector('.content');
+              
+              loadingDiv.style.display = 'none';
+              contentDiv.style.display = 'block';
+              contentDiv.innerHTML = '<div class="error">네트워크 오류가 발생했습니다.</div>';
+              updateModelStatus(modelName, 'error');
+            });
+            
             relevantFilesDiv.textContent = '오류가 발생했습니다.';
             console.error(error);
           }
         }
         
         async function refreshVectorStore() {
-          const recommendationDiv = document.getElementById('recommendation');
-          recommendationDiv.textContent = '벡터 저장소 갱신 중...';
+          const recommendationTabs = document.getElementById('recommendation-tabs');
+          const firstTabContent = recommendationTabs.querySelector('.tab-content.active .content');
+          firstTabContent.textContent = '벡터 저장소 갱신 중...';
           
           try {
             const response = await fetch('/api/refresh-vector-store', {
@@ -665,12 +1003,12 @@ app.get("/", (req, res) => {
             const data = await response.json();
             
             if (response.ok) {
-              recommendationDiv.textContent = '✅ ' + data.message;
+              firstTabContent.textContent = '✅ ' + data.message;
             } else {
-              recommendationDiv.textContent = '❌ 오류: ' + data.message;
+              firstTabContent.textContent = '❌ 오류: ' + data.message;
             }
           } catch (error) {
-            recommendationDiv.textContent = '❌ 벡터 저장소 갱신 중 네트워크 오류가 발생했습니다.';
+            firstTabContent.textContent = '❌ 벡터 저장소 갱신 중 네트워크 오류가 발생했습니다.';
             console.error(error);
           }
         }
