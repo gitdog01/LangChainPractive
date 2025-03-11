@@ -1,0 +1,19 @@
+{
+  "name": "langchain-app",
+  "version": "1.0.0",
+  "description": "LangChain 기반 Node.js 애플리케이션",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "nodemon main.js"
+  },
+  "dependencies": {
+    "langchain": "^0.1.4",
+    "dotenv": "^16.3.1",
+    "@langchain/openai": "^0.0.11",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+} 
