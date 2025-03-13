@@ -832,11 +832,11 @@ app.get("/", (req, res) => {
                 <h4>텍스트 분할 설정</h4>
                 <div class="setting-item">
                   <label for="chunkSize">청크 사이즈:</label>
-                  <input type="number" id="chunkSize" min="100" max="5000" value="1000" class="setting-input">
+                  <input type="number" id="chunkSize" min="100" max="5000" value="2000" class="setting-input">
                 </div>
                 <div class="setting-item">
                   <label for="chunkOverlap">오버랩 크기:</label>
-                  <input type="number" id="chunkOverlap" min="0" max="1000" value="200" class="setting-input">
+                  <input type="number" id="chunkOverlap" min="0" max="1000" value="500" class="setting-input">
                 </div>
               </div>
               <div class="settings-group">
