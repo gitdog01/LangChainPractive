@@ -75,10 +75,16 @@ const embeddings = new OpenAIEmbeddings({
 
 // 텍스트 분할기 초기화 - 큰 텍스트를 작은 청크로 나눔
 // 이는 임베딩 모델의 토큰 제한을 고려하고 더 정확한 검색을 위함
-const textSplitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000, // 각 청크의 최대 문자 수
-  chunkOverlap: 200, // 청크 간 중복되는 문자 수 (문맥 유지를 위함)
-});
+// 기본 값으로 초기화하지만, 사용자 설정에 따라 동적으로 변경될 수 있음
+function createTextSplitter(chunkSize = 1000, chunkOverlap = 200) {
+  return new RecursiveCharacterTextSplitter({
+    chunkSize: chunkSize, // 각 청크의 최대 문자 수
+    chunkOverlap: chunkOverlap, // 청크 간 중복되는 문자 수 (문맥 유지를 위함)
+  });
+}
+
+// 기본 설정으로 텍스트 분할기 생성
+let textSplitter = createTextSplitter();
 
 // Target 소스 코드 디렉토리 경로
 const TARGET_CODE_DIR = "./Target";
@@ -100,6 +106,11 @@ const MODEL_CONFIG = {
 async function loadSourceCodeAndCreateVectorStore() {
   try {
     console.log("🔍 Target 디렉토리에서 소스 코드 파일 검색 중...");
+
+    // 현재 설정된 분할기의 설정 로깅
+    console.log(
+      `📊 현재 텍스트 분할 설정: 청크 사이즈=${textSplitter.chunkSize}, 오버랩=${textSplitter.chunkOverlap}`
+    );
 
     // glob을 사용하여 Target 디렉토리의 모든 코드 파일 찾기
     // 확장자에 따라 다른 언어 파일도 포함시킬 수 있음
@@ -226,6 +237,20 @@ const codeRecommendationPrompt = new PromptTemplate({
 // 벡터 저장소 갱신 엔드포인트
 app.post("/api/refresh-vector-store", async (req, res) => {
   try {
+    // 사용자 설정 적용
+    const { chunkSize, chunkOverlap } = req.body;
+
+    // 유효한 값이 전달되었는지 확인하고 텍스트 분할기 업데이트
+    if (chunkSize && chunkOverlap) {
+      console.log(
+        `📐 텍스트 분할기 설정 업데이트: 청크 사이즈=${chunkSize}, 오버랩=${chunkOverlap}`
+      );
+      textSplitter = createTextSplitter(
+        parseInt(chunkSize),
+        parseInt(chunkOverlap)
+      );
+    }
+
     vectorStore = await loadSourceCodeAndCreateVectorStore();
     if (vectorStore) {
       res.json({
@@ -250,13 +275,17 @@ app.post("/api/refresh-vector-store", async (req, res) => {
 // 코드 추천 엔드포인트
 app.post("/api/recommend-code", async (req, res) => {
   try {
-    const { request } = req.body;
+    const { request, maxResults } = req.body;
+
+    // 검색 결과 수 기본값
+    const resultCount = maxResults ? parseInt(maxResults) : 5;
 
     if (!request) {
       return res.status(400).json({ error: "요청 내용이 비어있습니다." });
     }
 
     console.log(`💬 사용자 요청: ${request}`);
+    console.log(`🔍 검색 결과 수: ${resultCount}`);
 
     // 벡터 저장소가 없으면 초기화
     if (!vectorStore) {
@@ -276,7 +305,7 @@ app.post("/api/recommend-code", async (req, res) => {
     // scoreThreshold를 포함하여 유사도 점수를 함께 가져옵니다
     const searchResultsWithScore = await vectorStore.similaritySearchWithScore(
       request,
-      5
+      resultCount // 사용자 설정 적용
     );
 
     if (searchResultsWithScore.length === 0) {
@@ -659,7 +688,6 @@ app.get("/", (req, res) => {
           padding: 8px 15px;
           background-color: #f9f9f9;
           border-radius: 4px;
-          margin-top: 10px;
         }
         .model-status-item {
           display: flex;
@@ -670,6 +698,7 @@ app.get("/", (req, res) => {
           height: 12px;
           border-radius: 50%;
           margin-right: 8px;
+          background-color: #e0e0e0; /* 기본 상태는 회색 */
         }
         .status-pending {
           background-color: #ffb700;
@@ -691,6 +720,95 @@ app.get("/", (req, res) => {
           margin-bottom: 20px;
           font-style: italic;
         }
+        
+        /* 비활성화된 모델 텍스트 스타일 */
+        .disabled-model-text {
+          text-decoration: line-through;
+          color: #9e9e9e;
+        }
+        
+        /* 모델 상태 패널 스타일 */
+        .model-status-panel {
+          margin-top: 20px;
+          background-color: #f5f5f5;
+          border-radius: 8px;
+          padding: 15px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .model-status-panel h3 {
+          font-size: 16px;
+          margin-top: 0;
+          margin-bottom: 12px;
+          color: #333;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #ddd;
+        }
+        
+        /* 설정 패널 스타일 */
+        .settings-panel {
+          margin-top: 20px;
+          border-top: 1px solid #ddd;
+          padding-top: 10px;
+          background-color: #f5f5f5;
+          border-radius: 8px;
+          padding: 15px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .settings-panel h3 {
+          font-size: 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 15px;
+          cursor: pointer;
+          color: #333;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #ddd;
+        }
+        .toggle-btn {
+          background: none;
+          border: none;
+          font-size: 16px;
+          cursor: pointer;
+          padding: 0 5px;
+          color: #4caf50;
+          font-weight: bold;
+        }
+        .settings-group {
+          margin-bottom: 15px;
+          padding: 12px;
+          background-color: #ffffff;
+          border-radius: 6px;
+          border: 1px solid #e0e0e0;
+        }
+        .settings-group h4 {
+          font-size: 14px;
+          margin-top: 0;
+          margin-bottom: 12px;
+          color: #444;
+          font-weight: bold;
+        }
+        .setting-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+          padding: 5px 0;
+        }
+        .setting-input {
+          width: 100px;
+          padding: 6px 8px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          font-size: 14px;
+          text-align: center;
+          background-color: #f9f9f9;
+        }
+        .setting-input:focus {
+          outline: none;
+          border-color: #4caf50;
+          box-shadow: 0 0 3px rgba(76, 175, 80, 0.3);
+        }
       </style>
     </head>
     <body>
@@ -707,18 +825,45 @@ app.get("/", (req, res) => {
           <button class="refresh-btn" onclick="refreshVectorStore()">벡터 저장소 갱신</button>
           <p><small>참고: Target 디렉토리에 코드 파일을 추가/수정한 후 '벡터 저장소 갱신' 버튼을 클릭하세요.</small></p>
           
-          <div id="model-status" class="model-status" style="display: none;">
-            <div class="model-status-item">
-              <div class="status-dot status-pending" id="status-gpt-4o"></div>
-              <span>GPT-4o</span>
+          <div class="settings-panel">
+            <h3>고급 설정 <button class="toggle-btn" onclick="toggleSettings()">▲</button></h3>
+            <div id="advanced-settings">
+              <div class="settings-group">
+                <h4>텍스트 분할 설정</h4>
+                <div class="setting-item">
+                  <label for="chunkSize">청크 사이즈:</label>
+                  <input type="number" id="chunkSize" min="100" max="5000" value="1000" class="setting-input">
+                </div>
+                <div class="setting-item">
+                  <label for="chunkOverlap">오버랩 크기:</label>
+                  <input type="number" id="chunkOverlap" min="0" max="1000" value="200" class="setting-input">
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4>검색 설정</h4>
+                <div class="setting-item">
+                  <label for="maxResults">검색 결과 수:</label>
+                  <input type="number" id="maxResults" min="1" max="20" value="5" class="setting-input">
+                </div>
+              </div>
             </div>
-            <div class="model-status-item">
-              <div class="status-dot status-pending" id="status-gpt-o3-mini"></div>
-              <span>GPT-o3-mini</span>
-            </div>
-            <div class="model-status-item">
-              <div class="status-dot status-pending" id="status-gpt-o1"></div>
-              <span>GPT-o1</span>
+          </div>
+          
+          <div class="model-status-panel">
+            <h3>모델 상태</h3>
+            <div id="model-status" class="model-status">
+              <div class="model-status-item">
+                <div class="status-dot" id="status-gpt-4o"></div>
+                <span>GPT-4o</span>
+              </div>
+              <div class="model-status-item">
+                <div class="status-dot" id="status-gpt-o3-mini"></div>
+                <span>GPT-o3-mini</span>
+              </div>
+              <div class="model-status-item">
+                <div class="status-dot" id="status-gpt-o1"></div>
+                <span class="disabled-model-text">GPT-o1</span>
+              </div>
             </div>
           </div>
         </div>
@@ -794,7 +939,72 @@ app.get("/", (req, res) => {
               document.getElementById('tab-' + tabId).classList.add('active');
             });
           });
+          
+          // 고급 설정 패널의 초기 상태를 설정
+          initSettingsPanel();
         });
+        
+        // 고급 설정 패널 초기화
+        function initSettingsPanel() {
+          // 이전에 저장된 설정이 있으면 로드
+          const savedChunkSize = localStorage.getItem('chunkSize');
+          const savedChunkOverlap = localStorage.getItem('chunkOverlap');
+          const savedMaxResults = localStorage.getItem('maxResults');
+          
+          // 저장된 값이 있으면 적용, 없으면 기본값 사용
+          document.getElementById('chunkSize').value = savedChunkSize || 1000;
+          document.getElementById('chunkOverlap').value = savedChunkOverlap || 200;
+          document.getElementById('maxResults').value = savedMaxResults || 5;
+          
+          // 패널을 기본적으로 표시
+          document.getElementById('advanced-settings').style.display = 'block';
+          document.querySelector('.toggle-btn').textContent = '▲';
+          
+          // 초기 모델 상태 설정 - 비활성화된 모델 표시
+          initModelStatus();
+        }
+        
+        // 초기 모델 상태 설정
+        function initModelStatus() {
+          // GPT-o1이 비활성화된 상태로 표시
+          updateModelStatus('gpt-o1', 'disabled');
+        }
+        
+        // 고급 설정 토글 함수
+        function toggleSettings() {
+          const settingsPanel = document.getElementById('advanced-settings');
+          const toggleBtn = document.querySelector('.toggle-btn');
+          
+          // 현재 표시 상태 확인 (getComputedStyle을 사용하여 실제 렌더링된 상태 확인)
+          const isVisible = window.getComputedStyle(settingsPanel).display !== 'none';
+          
+          if (isVisible) {
+            // 현재 보이는 상태면 숨김
+            settingsPanel.style.display = 'none';
+            toggleBtn.textContent = '▼';
+          } else {
+            // 현재 숨겨진 상태면 표시
+            settingsPanel.style.display = 'block';
+            toggleBtn.textContent = '▲';
+          }
+        }
+        
+        // 현재 설정 값을 로컬 스토리지에 저장하고 가져오는 함수
+        function saveSettings() {
+          const chunkSize = document.getElementById('chunkSize').value;
+          const chunkOverlap = document.getElementById('chunkOverlap').value;
+          const maxResults = document.getElementById('maxResults').value;
+          
+          localStorage.setItem('chunkSize', chunkSize);
+          localStorage.setItem('chunkOverlap', chunkOverlap);
+          localStorage.setItem('maxResults', maxResults);
+          
+          return {
+            chunkSize: parseInt(chunkSize),
+            chunkOverlap: parseInt(chunkOverlap),
+            maxResults: parseInt(maxResults)
+          };
+        }
         
         // 마크다운 설정
         marked.setOptions({
@@ -839,10 +1049,10 @@ app.get("/", (req, res) => {
         
         // 모든 모델 상태 초기화
         function resetAllModelStatus() {
-          document.getElementById('model-status').style.display = 'flex';
           updateModelStatus('gpt-4o', 'pending');
           updateModelStatus('gpt-o3-mini', 'pending');
-          updateModelStatus('gpt-o1', 'pending');
+          // 비활성화된 모델은 상태 유지
+          updateModelStatus('gpt-o1', 'disabled');
         }
         
         async function getCodeRecommendation() {
@@ -853,6 +1063,9 @@ app.get("/", (req, res) => {
             alert('기능 요청을 입력해주세요.');
             return;
           }
+          
+          // 사용자 설정 저장
+          const settings = saveSettings();
           
           // 모델 상태 표시 초기화
           resetAllModelStatus();
@@ -876,7 +1089,10 @@ app.get("/", (req, res) => {
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ request }),
+              body: JSON.stringify({ 
+                request,
+                maxResults: settings.maxResults // 검색 결과 수 설정 전달
+              }),
             });
             
             const data = await response.json();
@@ -991,6 +1207,9 @@ app.get("/", (req, res) => {
         }
         
         async function refreshVectorStore() {
+          // 사용자 설정 저장
+          const settings = saveSettings();
+          
           const recommendationTabs = document.getElementById('recommendation-tabs');
           const firstTabContent = recommendationTabs.querySelector('.tab-content.active .content');
           firstTabContent.textContent = '벡터 저장소 갱신 중...';
@@ -998,6 +1217,13 @@ app.get("/", (req, res) => {
           try {
             const response = await fetch('/api/refresh-vector-store', {
               method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                chunkSize: settings.chunkSize,
+                chunkOverlap: settings.chunkOverlap
+              }),
             });
             
             const data = await response.json();
