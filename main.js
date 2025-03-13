@@ -76,7 +76,7 @@ const embeddings = new OpenAIEmbeddings({
 // 텍스트 분할기 초기화 - 큰 텍스트를 작은 청크로 나눔
 // 이는 임베딩 모델의 토큰 제한을 고려하고 더 정확한 검색을 위함
 // 기본 값으로 초기화하지만, 사용자 설정에 따라 동적으로 변경될 수 있음
-function createTextSplitter(chunkSize = 1000, chunkOverlap = 200) {
+function createTextSplitter(chunkSize = 2000, chunkOverlap = 500) {
   return new RecursiveCharacterTextSplitter({
     chunkSize: chunkSize, // 각 청크의 최대 문자 수
     chunkOverlap: chunkOverlap, // 청크 간 중복되는 문자 수 (문맥 유지를 위함)

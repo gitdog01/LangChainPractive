@@ -76,6 +76,7 @@
 - 사용자 설정이 localStorage에 저장되면 페이지 새로고침 후에도 유지된다.
 - UI/UX 개선은 사용자 경험에 큰 영향을 미친다.
 - 시각적 표시(취소선, 색상 등)가 직관적인 상태 인식에 도움이 된다.
+- 청크 적정크기로 2000, 오버랩 500 을 추천 받음 [링크](https://www.magicaiprompts.com/docs/rag/rag-indexing-complete-guide-5-steps)
 
 ### 개선 필요 사항
 
