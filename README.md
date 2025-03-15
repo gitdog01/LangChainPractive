@@ -38,7 +38,12 @@ npm install
 ```
 
 3. 환경 변수 설정
-   `.env` 파일을 생성하고 OpenAI API 키를 설정합니다:
+   `.env.example` 파일을 `.env`로 복사하고 필요한 API 키 및 설정을 업데이트합니다:
+
+```bash
+cp .env.example .env
+# 이후 .env 파일을 편집하여 API 키 등을 설정
+```
 
 ```
 OPENAI_API_KEY=your-api-key
