@@ -101,6 +101,23 @@ async function searchAndGenerate(userId, query, repository, maxResults = 5) {
       throw new Error("관련 문서를 찾을 수 없습니다.");
     }
 
+    // 파일별 청크 수 계산
+    const fileChunks = {};
+
+    // 모든 문서에 대해 소스 파일 카운트
+    for (const doc of similarDocs) {
+      if (!fileChunks[doc.source]) {
+        // 해당 파일의 총 청크 수 조회
+        const totalChunks = await Vector.countDocuments({
+          userId: userId,
+          repository: repository,
+          source: doc.source,
+        });
+
+        fileChunks[doc.source] = totalChunks;
+      }
+    }
+
     // 컨텍스트 구성
     const context = similarDocs
       .map((doc) => `[Source: ${doc.source}]\n${doc.content}`)
@@ -125,6 +142,15 @@ ${context}
         source: doc.source,
         similarity: doc.score,
         chunk_id: doc.chunk_id,
+      })),
+      relevantFiles: similarDocs.map((doc) => doc.source),
+      relevantFilesDetails: similarDocs.map((doc) => ({
+        path: doc.source,
+        chunk: doc.chunk_id + 1, // 0부터 시작하는 chunk_id를 1부터 시작하는 형태로 변환
+        totalChunks: fileChunks[doc.source],
+        preview:
+          doc.content.substring(0, 150) +
+          (doc.content.length > 150 ? "..." : ""), // 미리보기 150자로 제한
       })),
     };
   } catch (error) {

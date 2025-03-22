@@ -70,33 +70,23 @@ vectorSchema.statics.findSimilarDocuments = async function (
     const userIdStr = String(userId);
     const repositoryStr = String(repository);
 
-    // Atlas Search 사용 - $search를 첫 번째 단계로 사용
+    // 올바른 Atlas Search 구문 사용 - knnBeta에 직접 filter 적용
     return await this.aggregate([
       {
         $search: {
           index: "vector_index",
-          compound: {
-            must: [
-              {
-                equals: {
-                  value: userIdStr,
-                  path: "userId",
-                },
+          knnBeta: {
+            vector: queryVector,
+            path: "embedding",
+            k: limit,
+            filter: {
+              compound: {
+                must: [
+                  { equals: { path: "userId", value: userIdStr } },
+                  { equals: { path: "repository", value: repositoryStr } },
+                ],
               },
-              {
-                equals: {
-                  value: repositoryStr,
-                  path: "repository",
-                },
-              },
-              {
-                knnBeta: {
-                  vector: queryVector,
-                  path: "embedding",
-                  k: limit,
-                },
-              },
-            ],
+            },
           },
         },
       },

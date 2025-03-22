@@ -85,13 +85,9 @@ async function getCodeRecommendation(userId, request, maxResults, repository) {
       };
     }
 
-    // 관련 파일 정보 추출
-    const relevantFiles = result.sources.map((source) => source.source);
-    const relevantFilesDetails = result.sources.map((source) => ({
-      path: source.source,
-      similarity: source.similarity,
-      chunk_id: source.chunk_id,
-    }));
+    // 프론트엔드 형식에 맞게 데이터 추출
+    const relevantFiles = result.relevantFiles || [];
+    const relevantFilesDetails = result.relevantFilesDetails || [];
 
     // 코드 추천 생성을 위한 프롬프트 구성
     const prompt = `
@@ -122,7 +118,6 @@ ${result.sources
       ],
       relevantFiles,
       relevantFilesDetails,
-      sources: result.sources,
     };
   } catch (error) {
     console.error("코드 추천 생성 중 오류:", error);
