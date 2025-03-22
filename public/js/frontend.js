@@ -55,6 +55,17 @@ document.addEventListener("DOMContentLoaded", function () {
       const description = selectedOption.getAttribute("data-description");
       const language = selectedOption.getAttribute("data-language");
       const stars = selectedOption.getAttribute("data-stars");
+      const selectedRepo = repositorySelect.value;
+      const hasVectors =
+        selectedOption.getAttribute("data-has-vectors") === "true";
+
+      // 선택한 저장소를 localStorage에 저장
+      if (selectedRepo) {
+        localStorage.setItem("lastSelectedRepository", selectedRepo);
+      }
+
+      // 선택된 저장소의 벡터 데이터 유무에 따라 select 요소 스타일 업데이트
+      updateSelectStyle(repositorySelect, hasVectors);
 
       let infoHtml = "";
       if (description) {
@@ -67,15 +78,139 @@ document.addEventListener("DOMContentLoaded", function () {
         infoHtml += `<p>⭐ ${stars} stars</p>`;
       }
 
+      // 벡터 데이터 상태 표시 추가
+      if (hasVectors) {
+        infoHtml += `<p style="color: #4caf50; font-weight: bold;">✓ 벡터 데이터 연동됨</p>`;
+      } else {
+        infoHtml += `<p style="color: #757575;">✗ 벡터 데이터 없음</p>`;
+      }
+
       repoDescription.innerHTML = infoHtml;
     });
 
-    // 초기 선택 시 정보 표시
-    if (repositorySelect.value) {
-      repositorySelect.dispatchEvent(new Event("change"));
-    }
+    // 저장소 벡터 데이터 확인 후 초기 선택 설정
+    checkRepositoriesVectors();
   }
 });
+
+// 선택된 저장소의 벡터 데이터 유무에 따라 select 요소 스타일 업데이트
+function updateSelectStyle(selectElement, hasVectors) {
+  if (hasVectors) {
+    selectElement.classList.add("has-vectors");
+  } else {
+    selectElement.classList.remove("has-vectors");
+  }
+}
+
+// 저장소 벡터 데이터 확인 함수
+async function checkRepositoriesVectors() {
+  const repositorySelect = document.getElementById("repository");
+  if (!repositorySelect) return;
+
+  // 모든 저장소 목록 가져오기
+  const repositories = Array.from(repositorySelect.options).map(
+    (option) => option.value
+  );
+
+  try {
+    const response = await fetch("/api/check-vectors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repositories: repositories,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.repositories) {
+        // 저장소에 벡터 데이터 상태 표시
+        updateRepositoriesStatus(data.repositories);
+        // 저장소 정렬 (벡터 데이터 있는 것 우선)
+        sortRepositories();
+        // 초기 저장소 선택
+        initializeRepositorySelection(data.repositories);
+      }
+    } else {
+      console.error("저장소 벡터 데이터 확인 중 오류 발생");
+    }
+  } catch (error) {
+    console.error("API 요청 중 오류:", error);
+  }
+}
+
+// 저장소 벡터 데이터 상태 업데이트
+function updateRepositoriesStatus(repositories) {
+  const repositorySelect = document.getElementById("repository");
+  if (!repositorySelect) return;
+
+  // 각 저장소 옵션에 벡터 데이터 상태 표시
+  Array.from(repositorySelect.options).forEach((option) => {
+    const repo = repositories.find((r) => r.repository === option.value);
+    if (repo) {
+      option.setAttribute("data-has-vectors", repo.hasVectors);
+      if (repo.hasVectors) {
+        option.classList.add("repository-with-vectors");
+      } else {
+        option.classList.add("repository-without-vectors");
+      }
+    }
+  });
+
+  // 현재 선택된 옵션에 대한 select 요소 스타일 업데이트
+  const selectedOption =
+    repositorySelect.options[repositorySelect.selectedIndex];
+  if (selectedOption) {
+    const hasVectors =
+      selectedOption.getAttribute("data-has-vectors") === "true";
+    updateSelectStyle(repositorySelect, hasVectors);
+  }
+}
+
+// 저장소 정렬 (벡터 데이터 있는 것 우선)
+function sortRepositories() {
+  const repositorySelect = document.getElementById("repository");
+  if (!repositorySelect) return;
+
+  // 선택된 저장소 값 저장
+  const selectedValue = repositorySelect.value;
+
+  // 옵션 배열로 변환 후 정렬
+  const options = Array.from(repositorySelect.options);
+  options.sort((a, b) => {
+    const aHasVectors = a.getAttribute("data-has-vectors") === "true";
+    const bHasVectors = b.getAttribute("data-has-vectors") === "true";
+
+    // 먼저 벡터 데이터 유무로 정렬
+    if (aHasVectors && !bHasVectors) return -1;
+    if (!aHasVectors && bHasVectors) return 1;
+
+    // 벡터 데이터 유무가 같으면 업데이트 날짜로 정렬
+    const aUpdatedAt = a.getAttribute("data-updated-at");
+    const bUpdatedAt = b.getAttribute("data-updated-at");
+
+    if (aUpdatedAt && bUpdatedAt) {
+      // 날짜가 최신인 항목이 먼저 오도록 정렬 (내림차순)
+      return new Date(bUpdatedAt) - new Date(aUpdatedAt);
+    }
+
+    // 업데이트 날짜가 없으면 이름순 정렬
+    return a.value.localeCompare(b.value);
+  });
+
+  // 기존 옵션 제거
+  while (repositorySelect.firstChild) {
+    repositorySelect.removeChild(repositorySelect.firstChild);
+  }
+
+  // 정렬된 옵션을 다시 추가
+  options.forEach((option) => repositorySelect.appendChild(option));
+
+  // 기존 선택 값 복원
+  repositorySelect.value = selectedValue;
+}
 
 // 고급 설정 패널 초기화
 function initSettingsPanel() {
@@ -227,6 +362,11 @@ async function getCodeRecommendation() {
   if (!request) {
     alert("기능 요청을 입력해주세요.");
     return;
+  }
+
+  // 현재 선택된 저장소를 로컬 스토리지에 저장
+  if (repository) {
+    localStorage.setItem("lastSelectedRepository", repository);
   }
 
   // 사용자 설정 저장
@@ -394,6 +534,11 @@ async function refreshVectorStore() {
   const settings = saveSettings();
   const repository = document.getElementById("repository").value;
 
+  // 현재 선택된 저장소를 로컬 스토리지에 저장
+  if (repository) {
+    localStorage.setItem("lastSelectedRepository", repository);
+  }
+
   const recommendationTabs = document.getElementById("recommendation-tabs");
   const firstTabContent = recommendationTabs.querySelector(
     ".tab-content.active .content"
@@ -417,6 +562,41 @@ async function refreshVectorStore() {
 
     if (response.ok) {
       firstTabContent.textContent = "✅ " + data.message;
+
+      // 선택한 저장소의 벡터 상태 업데이트
+      const repositorySelect = document.getElementById("repository");
+      const selectedOption =
+        repositorySelect.options[repositorySelect.selectedIndex];
+
+      // 벡터 데이터가 생성되었으므로 상태 업데이트
+      selectedOption.setAttribute("data-has-vectors", "true");
+      selectedOption.classList.remove("repository-without-vectors");
+      selectedOption.classList.add("repository-with-vectors");
+
+      // select 요소 스타일 업데이트
+      updateSelectStyle(repositorySelect, true);
+
+      // repo-description 업데이트
+      const repoDescription = document.getElementById("repo-description");
+      if (repoDescription) {
+        // 기존 내용 가져오기
+        const existingHtml = repoDescription.innerHTML;
+
+        // 벡터 데이터 상태 표시가 있는지 확인하고 교체
+        if (existingHtml.includes("벡터 데이터 없음")) {
+          const updatedHtml = existingHtml.replace(
+            `<p style="color: #757575;">✗ 벡터 데이터 없음</p>`,
+            `<p style="color: #4caf50; font-weight: bold;">✓ 벡터 데이터 연동됨</p>`
+          );
+          repoDescription.innerHTML = updatedHtml;
+        } else if (!existingHtml.includes("벡터 데이터 연동됨")) {
+          // 상태 표시가 아직 없으면 추가
+          repoDescription.innerHTML += `<p style="color: #4caf50; font-weight: bold;">✓ 벡터 데이터 연동됨</p>`;
+        }
+      }
+
+      // 저장소 정렬 다시 수행
+      sortRepositories();
     } else {
       firstTabContent.textContent = "❌ 오류: " + data.message;
     }
@@ -424,5 +604,41 @@ async function refreshVectorStore() {
     firstTabContent.textContent =
       "❌ 벡터 저장소 갱신 중 네트워크 오류가 발생했습니다.";
     console.error(error);
+  }
+}
+
+// 초기 저장소 선택 설정
+function initializeRepositorySelection(repositories) {
+  const repositorySelect = document.getElementById("repository");
+  if (!repositorySelect) return;
+
+  // 1. 마지막으로 선택했던 저장소 확인
+  const lastSelectedRepo = localStorage.getItem("lastSelectedRepository");
+
+  if (lastSelectedRepo) {
+    // 마지막 선택 저장소가 목록에 있는지 확인
+    const exists = Array.from(repositorySelect.options).some(
+      (option) => option.value === lastSelectedRepo
+    );
+
+    if (exists) {
+      repositorySelect.value = lastSelectedRepo;
+      repositorySelect.dispatchEvent(new Event("change"));
+      return;
+    }
+  }
+
+  // 2. 벡터 데이터가 있는 저장소 찾기
+  const repoWithVectors = repositories.find((repo) => repo.hasVectors);
+  if (repoWithVectors) {
+    repositorySelect.value = repoWithVectors.repository;
+    repositorySelect.dispatchEvent(new Event("change"));
+    return;
+  }
+
+  // 3. 가장 최근에 업데이트된 저장소 사용 (이미 첫 번째 옵션으로 정렬되어 있다고 가정)
+  if (repositorySelect.options.length > 0) {
+    repositorySelect.selectedIndex = 0;
+    repositorySelect.dispatchEvent(new Event("change"));
   }
 }

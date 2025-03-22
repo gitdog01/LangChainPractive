@@ -7,6 +7,7 @@ const {
 const { authenticateUser } = require("../middleware/auth");
 const { vectorizeRepository } = require("../utils/githubUtils");
 const config = require("../config/config");
+const Vector = require("../models/VectorStore");
 
 // 코드 추천 API
 router.post("/recommend-code", authenticateUser, async (req, res) => {
@@ -128,6 +129,47 @@ router.post("/refresh-vector-store", authenticateUser, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "벡터 저장소 갱신 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+});
+
+// 저장소의 벡터 데이터 존재 여부 확인 API
+router.post("/check-vectors", authenticateUser, async (req, res) => {
+  try {
+    const { repositories } = req.body;
+
+    if (!repositories || !Array.isArray(repositories)) {
+      return res.status(400).json({
+        success: false,
+        message: "유효한 저장소 목록이 필요합니다.",
+      });
+    }
+
+    const results = await Promise.all(
+      repositories.map(async (repo) => {
+        // 해당 저장소의 벡터 데이터가 있는지 확인
+        const count = await Vector.countDocuments({
+          userId: req.user.id,
+          repository: repo,
+        });
+
+        return {
+          repository: repo,
+          hasVectors: count > 0,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      repositories: results,
+    });
+  } catch (error) {
+    console.error("벡터 데이터 확인 중 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "벡터 데이터 확인 중 오류가 발생했습니다.",
       error: error.message,
     });
   }

@@ -151,6 +151,8 @@ const getLoggedInTemplate = (user) => {
                   repo.description || ""
                 }" data-language="${repo.language || ""}" data-stars="${
                   repo.stars || 0
+                }" data-has-vectors="false" data-updated-at="${
+                  repo.updatedAt || ""
                 }">
                 ${repo.fullName}
                 ${repo.language ? ` (${repo.language})` : ""}
