@@ -142,6 +142,7 @@ ${context}
         source: doc.source,
         similarity: doc.score,
         chunk_id: doc.chunk_id,
+        content: doc.content,
       })),
       relevantFiles: similarDocs.map((doc) => doc.source),
       relevantFilesDetails: similarDocs.map((doc) => ({
