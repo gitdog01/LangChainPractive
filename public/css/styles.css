@@ -506,12 +506,13 @@ code .hljs-deletion {
 
 /* 저장소 목록 관련 스타일 */
 .repository-with-vectors {
-  color: #4caf50;
-  font-weight: bold;
+  color: #4caf50 !important;
+  font-weight: bold !important;
 }
 
 .repository-without-vectors {
-  color: #333;
+  color: #333 !important;
+  font-weight: normal !important;
 }
 
 /* 저장소 선택 요소 스타일 */
@@ -527,4 +528,73 @@ select.has-vectors {
 .form-group textarea {
   max-width: 100%;
   overflow-x: hidden;
+}
+
+/* 검색 가능한 select 스타일 */
+.searchable-select-container {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-input {
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  box-sizing: border-box;
+}
+
+.searchable-select-input:focus {
+  border-color: #4caf50;
+  outline: none;
+}
+
+.searchable-select-input.has-vectors {
+  color: #4caf50 !important;
+  font-weight: bold !important;
+  border-color: #333;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.searchable-select-dropdown {
+  position: absolute;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 0 0 4px 4px;
+  z-index: 10;
+  display: none;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.searchable-select-option {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.searchable-select-option:hover {
+  background-color: #f5f5f5;
+}
+
+.searchable-select-option.selected {
+  background-color: #e7f3ff;
+}
+
+.searchable-select-option.repository-with-vectors {
+  color: #4caf50 !important;
+  font-weight: bold !important;
+}
+
+.searchable-select-option.repository-without-vectors {
+  color: #333 !important;
+  font-weight: normal !important;
+}
+
+.searchable-select-no-results {
+  padding: 8px 12px;
+  color: #757575;
+  font-style: italic;
 } 
