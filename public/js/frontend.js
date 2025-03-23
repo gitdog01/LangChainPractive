@@ -19,6 +19,28 @@ document.addEventListener("DOMContentLoaded", function () {
     console.warn("highlight.js가 로드되지 않았습니다.");
   }
 
+  // 텍스트 영역 요소 가져오기
+  const requestTextarea = document.getElementById("request");
+
+  // 모든 버튼의 초기 상태 설정 (기본적으로 비활성화)
+  const recommendBtn = document.getElementById("recommend-btn");
+  const refreshBtn = document.getElementById("refresh-btn");
+  const disconnectBtn = document.getElementById("disconnect-btn");
+
+  if (recommendBtn) {
+    recommendBtn.disabled = true;
+    recommendBtn.classList.add("disabled");
+  }
+
+  if (refreshBtn) {
+    refreshBtn.classList.add("pulse-animation");
+  }
+
+  if (disconnectBtn) {
+    disconnectBtn.disabled = true;
+    disconnectBtn.classList.add("disabled");
+  }
+
   // 탭 버튼에 클릭 이벤트 추가
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -48,25 +70,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const repositorySelect = document.getElementById("repository");
   if (repositorySelect) {
     initSearchableSelect(repositorySelect);
-  }
-
-  // 모든 버튼의 초기 상태 설정 (기본적으로 비활성화)
-  const recommendBtn = document.getElementById("recommend-btn");
-  const refreshBtn = document.getElementById("refresh-btn");
-  const disconnectBtn = document.getElementById("disconnect-btn");
-
-  if (recommendBtn) {
-    recommendBtn.disabled = true;
-    recommendBtn.classList.add("disabled");
-  }
-
-  if (refreshBtn) {
-    refreshBtn.classList.add("pulse-animation");
-  }
-
-  if (disconnectBtn) {
-    disconnectBtn.disabled = true;
-    disconnectBtn.classList.add("disabled");
   }
 
   // 저장소 벡터 데이터 확인 후 초기 선택 설정
@@ -772,6 +775,15 @@ async function getCodeRecommendation() {
   relevantFilesDiv.innerHTML =
     '<div class="loading"><div class="loading-spinner"></div><p>관련 파일을 검색 중...</p><p class="small-text">처음 실행 시 벡터 저장소를 생성하는 데 시간이 걸릴 수 있습니다.</p></div>';
 
+  // 첫 번째 요청 후 애니메이션 표시 상태를 localStorage에 저장
+  localStorage.setItem("hasShownRecommendAnimation", "true");
+
+  // 추천 버튼에서 펄스 애니메이션 클래스 제거
+  const recommendButton = document.getElementById("recommend-btn");
+  if (recommendButton) {
+    recommendButton.classList.remove("recommend-pulse");
+  }
+
   try {
     const response = await fetch("/api/recommend-code", {
       method: "POST",
@@ -1203,6 +1215,10 @@ function updateButtonStates(hasVectors) {
   const disconnectButton = document.getElementById("disconnect-btn");
   const requestTextarea = document.getElementById("request");
 
+  // 첫 번째 요청인지 확인 (localStorage에 저장된 상태 확인)
+  const hasShownRecommendAnimation =
+    localStorage.getItem("hasShownRecommendAnimation") === "true";
+
   if (recommendButton && refreshButton && disconnectButton && requestTextarea) {
     if (hasVectors) {
       // 벡터 데이터가 있는 경우
@@ -1213,15 +1229,26 @@ function updateButtonStates(hasVectors) {
       const hasInput = requestTextarea.value.trim().length > 0;
 
       if (hasInput) {
-        // 텍스트가 있는 경우 버튼 활성화
+        // 텍스트가 있는 경우 버튼 활성화, textarea 애니메이션 제거
         recommendButton.disabled = false;
         recommendButton.classList.remove("disabled");
-        recommendButton.classList.add("active");
+
+        // 첫 번째 요청인 경우에만 애니메이션 적용
+        if (!hasShownRecommendAnimation) {
+          recommendButton.classList.add("recommend-pulse");
+          recommendButton.classList.add("active");
+        } else {
+          recommendButton.classList.add("active");
+        }
+
+        requestTextarea.classList.remove("pulse-animation");
       } else {
-        // 텍스트가 없는 경우 버튼 비활성화
+        // 텍스트가 없는 경우 버튼 비활성화, textarea 애니메이션 추가
         recommendButton.disabled = true;
         recommendButton.classList.add("disabled");
         recommendButton.classList.remove("active");
+        recommendButton.classList.remove("recommend-pulse");
+        requestTextarea.classList.add("pulse-animation");
       }
 
       // 텍스트 영역 입력 이벤트 처리
@@ -1231,14 +1258,41 @@ function updateButtonStates(hasVectors) {
           if (hasInput) {
             recommendButton.disabled = false;
             recommendButton.classList.remove("disabled");
+
+            // 첫 번째 요청인 경우에만 애니메이션 적용
+            if (!hasShownRecommendAnimation) {
+              recommendButton.classList.add("recommend-pulse");
+            }
+
             recommendButton.classList.add("active");
+            this.classList.remove("pulse-animation");
           } else {
             recommendButton.disabled = true;
             recommendButton.classList.add("disabled");
             recommendButton.classList.remove("active");
+            recommendButton.classList.remove("recommend-pulse");
+            this.classList.add("pulse-animation");
           }
         });
         requestTextarea.hasInputListener = true;
+      }
+
+      // 포커스 이벤트 처리 - 포커스 시 애니메이션 일시 중지
+      if (!requestTextarea.hasFocusListener) {
+        requestTextarea.addEventListener("focus", function () {
+          if (!this.value.trim().length) {
+            // 텍스트가 없을 때만 애니메이션 유지, focus 스타일은 CSS에서 처리
+          }
+        });
+
+        requestTextarea.addEventListener("blur", function () {
+          if (!this.value.trim().length) {
+            // textarea가 비어있을 경우 다시 애니메이션 적용
+            this.classList.add("pulse-animation");
+          }
+        });
+
+        requestTextarea.hasFocusListener = true;
       }
 
       // 이전 호버 리스너 제거 (이제 CSS로 처리)
@@ -1262,8 +1316,9 @@ function updateButtonStates(hasVectors) {
       disconnectButton.classList.remove("disabled");
     } else {
       // 벡터 데이터가 없는 경우
-      // 요청 textarea 비활성화
+      // 요청 textarea 비활성화 및 애니메이션 제거
       requestTextarea.disabled = true;
+      requestTextarea.classList.remove("pulse-animation");
 
       // 코드 추천 버튼 비활성화
       recommendButton.disabled = true;
