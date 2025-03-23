@@ -175,4 +175,45 @@ router.post("/check-vectors", authenticateUser, async (req, res) => {
   }
 });
 
+// 벡터 저장소 연동 해제 API
+router.post("/disconnect-vector-store", authenticateUser, async (req, res) => {
+  try {
+    const { repository } = req.body;
+
+    if (!repository) {
+      return res.status(400).json({
+        success: false,
+        message: "저장소 정보가 필요합니다.",
+      });
+    }
+
+    // 해당 저장소의 벡터 데이터 삭제
+    const result = await Vector.deleteMany({
+      userId: req.user.id,
+      repository: repository,
+    });
+
+    if (result.deletedCount > 0) {
+      res.json({
+        success: true,
+        message: `벡터 저장소 연동이 해제되었습니다. (${result.deletedCount}개 항목 삭제)`,
+        deletedCount: result.deletedCount,
+      });
+    } else {
+      res.json({
+        success: true,
+        message: "삭제할 벡터 데이터가 없습니다.",
+        deletedCount: 0,
+      });
+    }
+  } catch (error) {
+    console.error("벡터 저장소 연동 해제 중 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "벡터 저장소 연동 해제 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;

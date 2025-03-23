@@ -50,6 +50,26 @@ document.addEventListener("DOMContentLoaded", function () {
     initSearchableSelect(repositorySelect);
   }
 
+  // 모든 버튼의 초기 상태 설정 (기본적으로 비활성화)
+  const recommendBtn = document.getElementById("recommend-btn");
+  const refreshBtn = document.getElementById("refresh-btn");
+  const disconnectBtn = document.getElementById("disconnect-btn");
+
+  if (recommendBtn) {
+    recommendBtn.disabled = true;
+    recommendBtn.classList.add("disabled");
+    recommendBtn.querySelector(".label").style.display = "none";
+  }
+
+  if (refreshBtn) {
+    refreshBtn.classList.add("pulse-animation");
+  }
+
+  if (disconnectBtn) {
+    disconnectBtn.disabled = true;
+    disconnectBtn.classList.add("disabled");
+  }
+
   // 저장소 벡터 데이터 확인 후 초기 선택 설정
   checkRepositoriesVectors();
 });
@@ -1179,22 +1199,37 @@ function goToRepository() {
 
 // 저장소 벡터 데이터 상태에 따라 버튼 상태 업데이트 함수
 function updateButtonStates(hasVectors) {
-  const recommendButton = document.querySelector(
-    'button[onclick="getCodeRecommendation()"]'
-  );
-  const refreshButton = document.querySelector(".refresh-btn");
+  const recommendButton = document.getElementById("recommend-btn");
+  const refreshButton = document.getElementById("refresh-btn");
+  const disconnectButton = document.getElementById("disconnect-btn");
 
-  if (recommendButton && refreshButton) {
+  if (recommendButton && refreshButton && disconnectButton) {
     if (hasVectors) {
       // 벡터 데이터가 있는 경우
+      // 코드 추천 버튼 활성화
       recommendButton.disabled = false;
       recommendButton.classList.remove("disabled");
+      recommendButton.querySelector(".label").style.display = "block";
+
+      // 벡터 저장소 갱신 버튼 - 애니메이션 제거 & 호버 시에만 레이블 표시되도록
       refreshButton.classList.remove("pulse-animation");
+
+      // 연동 해제 버튼 활성화
+      disconnectButton.disabled = false;
+      disconnectButton.classList.remove("disabled");
     } else {
       // 벡터 데이터가 없는 경우
+      // 코드 추천 버튼 비활성화
       recommendButton.disabled = true;
       recommendButton.classList.add("disabled");
+      recommendButton.querySelector(".label").style.display = "none";
+
+      // 벡터 저장소 갱신 버튼 - 항상 레이블 표시 & 애니메이션 적용
       refreshButton.classList.add("pulse-animation");
+
+      // 연동 해제 버튼 비활성화
+      disconnectButton.disabled = true;
+      disconnectButton.classList.add("disabled");
     }
   }
 }
@@ -1231,4 +1266,132 @@ function updateInitialButtonStates() {
 
   // 버튼 상태 업데이트
   updateButtonStates(hasVectors);
+}
+
+// 벡터 저장소 연동 해제 함수
+async function disconnectVectorStore() {
+  // 저장소 값 가져오기 (검색 가능한 select 또는 기존 select에서)
+  let repository;
+  if (
+    window.searchableSelectElements &&
+    window.searchableSelectElements["repository"]
+  ) {
+    repository =
+      window.searchableSelectElements["repository"].hiddenInput.value;
+  } else {
+    repository = document.getElementById("repository").value;
+  }
+
+  // 저장소가 선택되지 않았으면 알림
+  if (!repository) {
+    alert("저장소를 선택해주세요.");
+    return;
+  }
+
+  // 사용자에게 확인 요청
+  if (
+    !confirm(
+      "정말로 이 저장소의 벡터 데이터를 삭제하시겠습니까?\n이 작업은 취소할 수 없습니다."
+    )
+  ) {
+    return;
+  }
+
+  // 현재 선택된 저장소를 로컬 스토리지에 저장
+  localStorage.setItem("lastSelectedRepository", repository);
+
+  const recommendationTabs = document.getElementById("recommendation-tabs");
+  const firstTabContent = recommendationTabs.querySelector(
+    ".tab-content.active .content"
+  );
+  firstTabContent.textContent = "벡터 저장소 연동 해제 중...";
+
+  try {
+    const response = await fetch("/api/disconnect-vector-store", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repository,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      firstTabContent.textContent = "✅ " + data.message;
+
+      // 선택한 저장소의 벡터 상태 업데이트
+      if (
+        window.searchableSelectElements &&
+        window.searchableSelectElements["repository"]
+      ) {
+        // 검색 가능한 select 요소 업데이트
+        const selectRef = window.searchableSelectElements["repository"];
+        const hiddenInput = selectRef.hiddenInput;
+        const searchInput = selectRef.searchInput;
+
+        // 선택된 옵션 찾기
+        const selectedOption = selectRef.dropdownOptions.find(
+          (option) => option.getAttribute("data-value") === hiddenInput.value
+        );
+
+        if (selectedOption) {
+          // 벡터 데이터가 삭제되었으므로 상태 업데이트
+          selectedOption.setAttribute("data-has-vectors", "false");
+          selectedOption.classList.remove("repository-with-vectors");
+          selectedOption.classList.add("repository-without-vectors");
+
+          // 입력 필드 스타일 업데이트
+          updateSearchableSelectStyle(searchInput, false);
+
+          // 버튼 상태 업데이트
+          updateButtonStates(false);
+        }
+      } else {
+        // 기존 select 요소 업데이트
+        const repositorySelect = document.getElementById("repository");
+        const selectedOption =
+          repositorySelect.options[repositorySelect.selectedIndex];
+
+        // 벡터 데이터가 삭제되었으므로 상태 업데이트
+        selectedOption.setAttribute("data-has-vectors", "false");
+        selectedOption.classList.remove("repository-with-vectors");
+        selectedOption.classList.add("repository-without-vectors");
+
+        // select 요소 스타일 업데이트
+        updateSelectStyle(repositorySelect, false);
+
+        // 버튼 상태 업데이트
+        updateButtonStates(false);
+      }
+
+      // repo-description 업데이트
+      const repoDescription = document.getElementById("repo-description");
+      if (repoDescription) {
+        // 기존 내용 가져오기
+        const existingHtml = repoDescription.innerHTML;
+
+        // 벡터 데이터 상태 표시가 있는지 확인하고 교체
+        if (existingHtml.includes("벡터 데이터 연동됨")) {
+          const updatedHtml = existingHtml.replace(
+            `<p style="color: #4caf50; font-weight: bold;">✓ 벡터 데이터 연동됨</p>`,
+            `<p style="color: #757575;">✗ 벡터 데이터 없음</p>`
+          );
+          repoDescription.innerHTML = updatedHtml;
+        }
+      }
+
+      // 저장소 정렬 다시 수행
+      sortRepositories();
+    } else {
+      firstTabContent.textContent = "❌ 오류: " + data.message;
+      console.error("벡터 저장소 연동 해제 실패:", data);
+    }
+  } catch (error) {
+    firstTabContent.textContent =
+      "❌ 벡터 저장소 연동 해제 중 네트워크 오류가 발생했습니다.";
+    console.error("벡터 저장소 연동 해제 오류:", error);
+  }
 }

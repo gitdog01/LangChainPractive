@@ -68,6 +68,9 @@ button {
   cursor: pointer;
   border-radius: 4px;
   margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button:hover {
@@ -80,6 +83,224 @@ button:hover {
 
 .refresh-btn:hover {
   background-color: #0b7dda;
+}
+
+/* 버튼 공통 스타일 (레이아웃) */
+.recommend-btn, .refresh-btn, .disconnect-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  width: auto;
+  min-width: 36px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* 코드 추천 버튼 스타일 */
+.recommend-btn {
+  background-color: #4caf50;
+}
+
+.recommend-btn:hover {
+  background-color: #45a049;
+}
+
+/* 아이콘 공통 스타일 */
+.recommend-btn .icon, .refresh-btn .icon, .disconnect-btn .icon {
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  height: 16px;
+}
+
+/* SVG 아이콘 수직 정렬 수정 */
+.recommend-btn .icon svg, .refresh-btn .icon svg, .disconnect-btn .icon svg {
+  vertical-align: middle;
+  display: block;
+  position: relative;
+  top: 0;
+}
+
+/* 레이블 공통 스타일 */
+.recommend-btn .label, .refresh-btn .label, .disconnect-btn .label {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  height: 16px;
+}
+
+/* disabled 상태일 때 스타일 */
+.recommend-btn.disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  width: 36px;
+  min-width: 36px;
+  justify-content: center;
+}
+
+.recommend-btn.disabled .label {
+  opacity: 0;
+  width: 0;
+  display: none;
+}
+
+.recommend-btn.disabled .icon {
+  margin-right: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* 벡터 저장소 갱신 버튼 - 연동된 상태 */
+.refresh-btn:not(.pulse-animation) {
+  width: 36px;
+  min-width: 36px;
+  justify-content: center;
+  padding: 10px;
+}
+
+.refresh-btn:not(.pulse-animation) .icon {
+  margin-right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn:not(.pulse-animation) .label {
+  opacity: 0;
+  width: 0;
+  transition: opacity 0.3s ease, width 0.3s ease;
+  display: none;
+}
+
+.refresh-btn:not(.pulse-animation):hover {
+  width: 180px;
+  padding: 10px 15px;
+}
+
+.refresh-btn:not(.pulse-animation):hover .icon {
+  margin-right: 8px;
+}
+
+.refresh-btn:not(.pulse-animation):hover .label {
+  opacity: 1;
+  width: auto;
+  display: inline-flex;
+}
+
+/* 벡터 저장소 갱신 버튼 - 연동 안 된 상태일 때 */
+.refresh-btn.pulse-animation {
+  width: auto;
+  min-width: 180px;
+  padding: 10px 15px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.refresh-btn.pulse-animation .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn.pulse-animation .label {
+  opacity: 1;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 벡터 저장소 연동 해제 버튼 */
+.disconnect-btn {
+  background-color: #ff5252;
+  width: 36px;
+  min-width: 36px;
+  margin-left: 0;
+  margin-right: 0;
+  justify-content: center;
+}
+
+.disconnect-btn .icon {
+  margin-right: 0;
+  transition: margin 0.3s ease;
+  display: flex;
+  justify-content: center;
+}
+
+.disconnect-btn .label {
+  opacity: 0;
+  width: 0;
+  transition: opacity 0.3s ease, width 0.3s ease;
+}
+
+.disconnect-btn:hover {
+  background-color: #e53935;
+  width: 180px;
+  justify-content: flex-start;
+}
+
+.disconnect-btn:hover .icon {
+  margin-right: 8px;
+}
+
+.disconnect-btn:hover .label {
+  opacity: 1;
+  width: auto;
+}
+
+.disconnect-btn.disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.disconnect-btn.disabled:hover {
+  background-color: #bbb;
+  width: 36px;
+}
+
+.disconnect-btn.disabled:hover .icon {
+  margin-right: 0;
+}
+
+.disconnect-btn.disabled:hover .label {
+  opacity: 0;
+  width: 0;
+}
+
+/* 버튼 컨테이너 스타일 */
+.button-container {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin-bottom: 15px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 버튼 내부 정렬 추가 보정 */
+.button-container button {
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.button-container .icon {
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.button-container .label {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  line-height: 1;
 }
 
 #recommendation-tabs,
