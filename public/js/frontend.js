@@ -150,6 +150,9 @@ function initSearchableSelect(selectElement) {
       // 저장소 정보 업데이트
       updateRepositoryInfo(this.getAttribute("data-value"));
 
+      // 버튼 상태 업데이트
+      updateButtonStates(hasVectors);
+
       // 선택한 저장소를 localStorage에 저장
       localStorage.setItem(
         "lastSelectedRepository",
@@ -263,6 +266,9 @@ function updateRepositoryInfo(repositoryValue) {
     const hasVectors =
       selectedOption.getAttribute("data-has-vectors") === "true";
 
+    // 버튼 상태 업데이트
+    updateButtonStates(hasVectors);
+
     let infoHtml = "";
     if (description) {
       infoHtml += `<p>${description}</p>`;
@@ -356,6 +362,9 @@ async function checkRepositoriesVectors() {
 
         // 초기 저장소 선택
         initializeRepositorySelection(data.repositories);
+
+        // 페이지 로드 시 현재 선택된 저장소의 버튼 상태 업데이트
+        updateInitialButtonStates();
       }
     } else {
       console.error("저장소 벡터 데이터 확인 중 오류 발생");
@@ -956,6 +965,9 @@ async function refreshVectorStore() {
 
           // 입력 필드 스타일 업데이트
           updateSearchableSelectStyle(searchInput, true);
+
+          // 버튼 상태 업데이트
+          updateButtonStates(true);
         }
       } else {
         // 기존 select 요소 업데이트
@@ -970,6 +982,9 @@ async function refreshVectorStore() {
 
         // select 요소 스타일 업데이트
         updateSelectStyle(repositorySelect, true);
+
+        // 버튼 상태 업데이트
+        updateButtonStates(true);
       }
 
       // repo-description 업데이트
@@ -1160,4 +1175,60 @@ function goToRepository() {
 
   // GitHub 저장소 페이지로 이동
   window.open(`https://github.com/${repository}`, "_blank");
+}
+
+// 저장소 벡터 데이터 상태에 따라 버튼 상태 업데이트 함수
+function updateButtonStates(hasVectors) {
+  const recommendButton = document.querySelector(
+    'button[onclick="getCodeRecommendation()"]'
+  );
+  const refreshButton = document.querySelector(".refresh-btn");
+
+  if (recommendButton && refreshButton) {
+    if (hasVectors) {
+      // 벡터 데이터가 있는 경우
+      recommendButton.disabled = false;
+      recommendButton.classList.remove("disabled");
+      refreshButton.classList.remove("pulse-animation");
+    } else {
+      // 벡터 데이터가 없는 경우
+      recommendButton.disabled = true;
+      recommendButton.classList.add("disabled");
+      refreshButton.classList.add("pulse-animation");
+    }
+  }
+}
+
+// 페이지 로드 시 현재 선택된 저장소의 버튼 상태 업데이트
+function updateInitialButtonStates() {
+  let hasVectors = false;
+
+  // 검색 가능한 select 컴포넌트의 경우
+  if (
+    window.searchableSelectElements &&
+    window.searchableSelectElements["repository"]
+  ) {
+    const selectRef = window.searchableSelectElements["repository"];
+    const hiddenInput = selectRef.hiddenInput;
+
+    const selectedOption = selectRef.dropdownOptions.find(
+      (option) => option.getAttribute("data-value") === hiddenInput.value
+    );
+
+    if (selectedOption) {
+      hasVectors = selectedOption.getAttribute("data-has-vectors") === "true";
+    }
+  }
+  // 기존 select 요소의 경우
+  else {
+    const repositorySelect = document.getElementById("repository");
+    if (repositorySelect && repositorySelect.selectedIndex >= 0) {
+      const selectedOption =
+        repositorySelect.options[repositorySelect.selectedIndex];
+      hasVectors = selectedOption.getAttribute("data-has-vectors") === "true";
+    }
+  }
+
+  // 버튼 상태 업데이트
+  updateButtonStates(hasVectors);
 }

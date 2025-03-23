@@ -632,6 +632,42 @@ select.has-vectors {
   color: #0366d6;
 }
 
+/* 비활성화된 버튼 스타일 */
+button.disabled {
+  background-color: #cccccc !important;
+  color: #888888 !important;
+  cursor: not-allowed !important;
+  opacity: 0.7;
+}
+
+/* 벡터 저장소 갱신 버튼 펄스 애니메이션 */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.9);
+    transform: scale(1);
+    background-color: #2196f3;
+  }
+  50% {
+    box-shadow: 0 0 15px 5px rgba(33, 150, 243, 0.6);
+    transform: scale(1.05);
+    background-color: #0d8aee;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.1);
+    transform: scale(1);
+    background-color: #2196f3;
+  }
+}
+
+.pulse-animation {
+  animation: pulse 1.2s infinite ease-in-out;
+  position: relative;
+  color: white !important;
+  font-weight: bold !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s;
+}
+
 /* 사용자 정보 링크 스타일 */
 .user-info a {
   display: flex;
