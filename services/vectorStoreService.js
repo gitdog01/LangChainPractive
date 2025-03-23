@@ -9,12 +9,6 @@ const embeddings = new OpenAIEmbeddings({
   openAIApiKey: config.openai.apiKey,
 });
 
-const llm = new ChatOpenAI({
-  openAIApiKey: config.openai.apiKey,
-  modelName: "gpt-3.5-turbo",
-  temperature: 0.7,
-});
-
 // 텍스트 분할기 초기화
 const textSplitter = new RecursiveCharacterTextSplitter({
   chunkSize: 1000,
@@ -118,26 +112,7 @@ async function searchAndGenerate(userId, query, repository, maxResults = 5) {
       }
     }
 
-    // 컨텍스트 구성
-    const context = similarDocs
-      .map((doc) => `[Source: ${doc.source}]\n${doc.content}`)
-      .join("\n\n");
-
-    // 프롬프트 구성
-    const prompt = `다음 컨텍스트를 바탕으로 질문에 답변해주세요:
-
-컨텍스트:
-${context}
-
-질문: ${query}
-
-답변:`;
-
-    // LLM을 사용하여 응답 생성
-    const response = await llm.invoke(prompt);
-
     return {
-      answer: response.content,
       sources: similarDocs.map((doc) => ({
         source: doc.source,
         similarity: doc.score,

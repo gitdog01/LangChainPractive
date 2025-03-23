@@ -103,7 +103,8 @@ async function getCodeRecommendation(userId, request, maxResults, repository) {
       maxResults
     );
 
-    if (!result || !result.answer) {
+    // 여기 좀 다른 방법으로 수정해야함
+    if (!result) {
       return {
         modelResults: [
           {
