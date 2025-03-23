@@ -1018,4 +1018,93 @@ textarea.pulse-animation:focus {
   animation: none;
   box-shadow: 0 0 5px rgba(76, 175, 80, 0.7);
   border-color: #4caf50;
+}
+
+/* 코드미러 에디터 스타일 */
+.code-editor {
+  margin: 15px 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.CodeMirror {
+  height: auto !important;
+  font-family: Consolas, "Source Code Pro", Menlo, Monaco, "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.CodeMirror-merge {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.CodeMirror-merge-pane {
+  height: auto;
+}
+
+.CodeMirror-merge-gap {
+  background-color: #f8f9fa;
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+}
+
+.CodeMirror-linebackground.CodeMirror-line-addition {
+  background-color: rgba(0, 255, 0, 0.1);
+}
+
+.CodeMirror-linebackground.CodeMirror-line-deletion {
+  background-color: rgba(255, 0, 0, 0.1);
+}
+
+.CodeMirror-linenumber {
+  min-width: 30px;
+  text-align: right;
+  padding: 0 5px;
+  color: #999;
+}
+
+.original-line-number {
+  font-size: 12px;
+  color: #888;
+  margin-left: 5px;
+  font-style: italic;
+}
+
+/* 파일 경로 스타일 */
+.file-path {
+  font-family: Consolas, monospace;
+  font-size: 14px;
+  color: #333;
+  background-color: #f1f1f1;
+  padding: 5px 10px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  justify-content: space-between;
+}
+
+.file-path .line-info {
+  font-size: 12px;
+  color: #666;
+}
+
+.code-container {
+  margin-bottom: 20px;
+}
+
+/* 언어 배지 스타일 */
+.language-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background-color: #e0e0e0;
+  color: #333;
+  margin-left: 8px;
+  vertical-align: middle;
 } 

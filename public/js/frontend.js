@@ -684,17 +684,7 @@ function saveSettings() {
 // 마크다운 설정
 marked.setOptions({
   highlight: function (code, lang) {
-    if (typeof hljs !== "undefined") {
-      try {
-        if (lang && hljs.getLanguage(lang)) {
-          return hljs.highlight(code, { language: lang }).value;
-        }
-        return hljs.highlightAuto(code).value;
-      } catch (e) {
-        console.error("구문 강조 중 오류:", e);
-        return code;
-      }
-    }
+    // 외부에서 처리하므로 간단히 반환
     return code;
   },
   gfm: true,
@@ -830,19 +820,9 @@ async function getCodeRecommendation() {
           timeDiv.textContent = "생성 시간: " + new Date().toLocaleTimeString();
           contentDiv.appendChild(timeDiv);
 
-          // 코드 구문 강조 적용
+          // 코드 블록 향상 처리
           setTimeout(function () {
-            if (typeof hljs !== "undefined") {
-              try {
-                tabContent
-                  .querySelectorAll("pre code")
-                  .forEach(function (block) {
-                    hljs.highlightElement(block);
-                  });
-              } catch (e) {
-                console.error("코드 강조 적용 중 오류:", e);
-              }
-            }
+            enhanceCodeBlocks(contentDiv);
           }, 100);
         }
       });
@@ -1495,4 +1475,284 @@ async function disconnectVectorStore() {
       "❌ 벡터 저장소 연동 해제 중 네트워크 오류가 발생했습니다.";
     console.error("벡터 저장소 연동 해제 오류:", error);
   }
+}
+
+// 코드 블록을 CodeMirror 에디터로 변환하는 함수
+function enhanceCodeBlocks(contentElement) {
+  const codeBlocks = contentElement.querySelectorAll("pre code");
+
+  codeBlocks.forEach((codeBlock, index) => {
+    const preElement = codeBlock.parentElement;
+    const rawCode = codeBlock.textContent;
+
+    // 코드 블록 언어 추출
+    let lang = "";
+    const classMatch = codeBlock.className.match(/language-(\w+)/);
+    if (classMatch) {
+      lang = classMatch[1];
+    }
+
+    // 파일 경로와 라인 정보 추출
+    let filePath = "";
+    let lineInfo = "";
+    const fileMatch = rawCode.match(
+      /^(.+\.[\w]+)(?:\s+\(lines\s+(\d+)-(\d+)\))?/
+    );
+
+    if (fileMatch) {
+      filePath = fileMatch[1].trim();
+      if (fileMatch[2] && fileMatch[3]) {
+        lineInfo = `라인 ${fileMatch[2]}-${fileMatch[3]}`;
+      }
+    }
+
+    // 코드가 diff인 경우 특별 처리
+    if (
+      lang === "diff" ||
+      rawCode.includes("+++") ||
+      rawCode.includes("---") ||
+      rawCode.includes("+++ ") ||
+      rawCode.includes("--- ") ||
+      rawCode.match(/^@@ -\d+,\d+ \+\d+,\d+ @@/m)
+    ) {
+      // diff 감지
+      const container = document.createElement("div");
+      container.className = "code-container";
+
+      // 파일 경로 헤더 추가
+      if (filePath) {
+        const pathHeader = document.createElement("div");
+        pathHeader.className = "file-path";
+        pathHeader.innerHTML = `<span>${filePath}</span>`;
+        if (lineInfo) {
+          pathHeader.innerHTML += `<span class="line-info">${lineInfo}</span>`;
+        }
+        container.appendChild(pathHeader);
+      }
+
+      // 에디터 컨테이너
+      const editorDiv = document.createElement("div");
+      editorDiv.className = "code-editor";
+      editorDiv.id = `editor-${index}`;
+      container.appendChild(editorDiv);
+
+      // 에디터 초기화를 위해 preElement 대체
+      preElement.parentNode.replaceChild(container, preElement);
+
+      // diff 처리 및 원본 라인 번호 추출
+      const diffProcessor = processDiff(rawCode, editorDiv.id);
+
+      // CodeMirror 에디터 생성
+      const editor = CodeMirror(editorDiv, {
+        value: diffProcessor.processedCode,
+        mode: getCodeMirrorMode(lang || diffProcessor.detectedLang),
+        lineNumbers: true,
+        readOnly: true,
+        theme: "default",
+        viewportMargin: Infinity,
+      });
+
+      // 라인 배경색 설정
+      diffProcessor.lineTypes.forEach((type, line) => {
+        if (type === "addition") {
+          editor.addLineClass(line, "background", "CodeMirror-line-addition");
+        } else if (type === "deletion") {
+          editor.addLineClass(line, "background", "CodeMirror-line-deletion");
+        }
+      });
+
+      // 원본 라인 번호 표시
+      if (diffProcessor.originalLineNumbers) {
+        const lineNumberElements = editorDiv.querySelectorAll(
+          ".CodeMirror-linenumber"
+        );
+        diffProcessor.originalLineNumbers.forEach((originalLine, idx) => {
+          if (originalLine && lineNumberElements[idx]) {
+            const lineSpan = document.createElement("span");
+            lineSpan.className = "original-line-number";
+            lineSpan.textContent = `(${originalLine})`;
+            lineNumberElements[idx].appendChild(lineSpan);
+          }
+        });
+      }
+    } else {
+      // 일반 코드 블록 처리
+      const container = document.createElement("div");
+      container.className = "code-container";
+
+      if (filePath) {
+        const pathHeader = document.createElement("div");
+        pathHeader.className = "file-path";
+        pathHeader.innerHTML = `<span>${filePath}</span>`;
+        if (lineInfo) {
+          pathHeader.innerHTML += `<span class="line-info">${lineInfo}</span>`;
+        }
+        if (lang) {
+          pathHeader.innerHTML += `<span class="language-badge">${lang}</span>`;
+        }
+        container.appendChild(pathHeader);
+      }
+
+      const editorDiv = document.createElement("div");
+      editorDiv.className = "code-editor";
+      editorDiv.id = `editor-${index}`;
+      container.appendChild(editorDiv);
+
+      preElement.parentNode.replaceChild(container, preElement);
+
+      // 파일 경로와 라인 정보 제거
+      let cleanCode = rawCode;
+      if (fileMatch) {
+        cleanCode = rawCode.substring(rawCode.indexOf("\n") + 1);
+      }
+
+      // CodeMirror 에디터 생성
+      CodeMirror(editorDiv, {
+        value: cleanCode,
+        mode: getCodeMirrorMode(lang),
+        lineNumbers: true,
+        readOnly: true,
+        theme: "default",
+        viewportMargin: Infinity,
+      });
+    }
+  });
+}
+
+// diff 코드 처리 함수
+function processDiff(diffText, editorId) {
+  const lines = diffText.split("\n");
+  const processedLines = [];
+  const lineTypes = [];
+  const originalLineNumbers = [];
+
+  let detectedLang = "";
+  let inFileHeader = true;
+  let currentOriginalLine = null;
+
+  // 파일 확장자로 언어 감지
+  const fileHeaderMatch = diffText.match(
+    /^(?:diff --git a\/|---|\+\+\+)(.*?)(\.\w+)(?:\s|$)/m
+  );
+  if (fileHeaderMatch && fileHeaderMatch[2]) {
+    const ext = fileHeaderMatch[2].substring(1);
+    detectedLang = getLanguageFromExtension(ext);
+  }
+
+  lines.forEach((line, idx) => {
+    // 파일 헤더 건너뛰기
+    if (
+      inFileHeader &&
+      (line.startsWith("diff ") ||
+        line.startsWith("---") ||
+        line.startsWith("+++"))
+    ) {
+      return;
+    }
+
+    // Hunk 헤더 처리 (@@ -x,y +a,b @@)
+    if (line.match(/^@@ -\d+,\d+ \+\d+,\d+ @@/)) {
+      inFileHeader = false;
+      const match = line.match(/@@ -(\d+),\d+ \+(\d+),\d+ @@/);
+      if (match) {
+        currentOriginalLine = parseInt(match[1], 10);
+      }
+      return;
+    }
+
+    inFileHeader = false;
+
+    // 라인 처리
+    if (line.startsWith("+")) {
+      processedLines.push(line.substring(1));
+      lineTypes.push("addition");
+      originalLineNumbers.push(null); // 추가된 라인은 원본에 없음
+    } else if (line.startsWith("-")) {
+      processedLines.push(line.substring(1));
+      lineTypes.push("deletion");
+      originalLineNumbers.push(currentOriginalLine++);
+    } else if (line.startsWith(" ")) {
+      processedLines.push(line.substring(1));
+      lineTypes.push("context");
+      originalLineNumbers.push(currentOriginalLine++);
+    } else {
+      processedLines.push(line);
+      lineTypes.push("normal");
+      if (currentOriginalLine !== null) {
+        originalLineNumbers.push(currentOriginalLine++);
+      } else {
+        originalLineNumbers.push(null);
+      }
+    }
+  });
+
+  return {
+    processedCode: processedLines.join("\n"),
+    lineTypes: lineTypes,
+    originalLineNumbers: originalLineNumbers,
+    detectedLang: detectedLang,
+  };
+}
+
+// 파일 확장자로 언어 감지
+function getLanguageFromExtension(ext) {
+  const extMap = {
+    js: "javascript",
+    ts: "javascript",
+    jsx: "javascript",
+    tsx: "javascript",
+    py: "python",
+    rb: "ruby",
+    java: "clike",
+    cs: "clike",
+    c: "clike",
+    cpp: "clike",
+    h: "clike",
+    html: "htmlmixed",
+    htm: "htmlmixed",
+    css: "css",
+    php: "php",
+    go: "go",
+    rs: "rust",
+    swift: "swift",
+    kt: "kotlin",
+    md: "markdown",
+    json: "javascript",
+    xml: "xml",
+    yml: "yaml",
+    yaml: "yaml",
+    sh: "shell",
+    bash: "shell",
+  };
+
+  return extMap[ext.toLowerCase()] || "";
+}
+
+// CodeMirror 모드 반환
+function getCodeMirrorMode(lang) {
+  const modeMap = {
+    javascript: "javascript",
+    js: "javascript",
+    typescript: "javascript",
+    ts: "javascript",
+    jsx: "jsx",
+    tsx: "jsx",
+    python: "python",
+    py: "python",
+    ruby: "ruby",
+    rb: "ruby",
+    java: "clike",
+    c: "clike",
+    cpp: "clike",
+    csharp: "clike",
+    cs: "clike",
+    html: "htmlmixed",
+    xml: "xml",
+    css: "css",
+    json: "javascript",
+    go: "go",
+    diff: "diff",
+  };
+
+  return modeMap[lang] || "javascript";
 }
