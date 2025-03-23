@@ -15,10 +15,14 @@ const getMainTemplate = (isAuthenticated, user) => {
         isAuthenticated && user
           ? `
         <div class="user-info">
-          <img src="${
-            user.avatar || "https://github.com/github.png"
-          }" alt="프로필" style="width: 40px; height: 40px; border-radius: 50%;">
-          <span>${user.displayName || user.username || "사용자"}</span>
+          <a href="https://github.com/${
+            user.username
+          }" target="_blank" title="GitHub 프로필 방문">
+            <img src="${
+              user.avatar || "https://github.com/github.png"
+            }" alt="프로필" style="width: 40px; height: 40px; border-radius: 50%;">
+            <span>${user.displayName || user.username || "사용자"}</span>
+          </a>
           <a href="/logout" class="logout-btn">로그아웃</a>
         </div>
       `
@@ -49,6 +53,9 @@ const getLoggedInTemplate = (user) => {
             <select id="repository" class="form-control">
               <option value="">저장소를 불러오는 중...</option>
             </select>
+            <button id="goto-repo-btn" class="goto-repo-btn" title="선택된 저장소로 이동" onclick="goToRepository()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
           </div>
           <div class="form-group">
             <label for="request">기능 요청:</label>
@@ -143,25 +150,30 @@ const getLoggedInTemplate = (user) => {
       <div class="left-panel">
         <div class="form-group">
           <label for="repository">GitHub 저장소 선택:</label>
-          <select id="repository" class="form-control">
-            ${user.repositories
-              .map(
-                (repo) => `
-              <option value="${repo.fullName}" data-description="${
-                  repo.description || ""
-                }" data-language="${repo.language || ""}" data-stars="${
-                  repo.stars || 0
-                }" data-has-vectors="false" data-updated-at="${
-                  repo.updatedAt || ""
-                }">
-                ${repo.fullName}
-                ${repo.language ? ` (${repo.language})` : ""}
-                ${repo.stars ? ` ⭐ ${repo.stars}` : ""}
-              </option>
-            `
-              )
-              .join("")}
-          </select>
+          <div class="repository-container">
+            <select id="repository" class="form-control">
+              ${user.repositories
+                .map(
+                  (repo) => `
+                <option value="${repo.fullName}" data-description="${
+                    repo.description || ""
+                  }" data-language="${repo.language || ""}" data-stars="${
+                    repo.stars || 0
+                  }" data-has-vectors="false" data-updated-at="${
+                    repo.updatedAt || ""
+                  }">
+                  ${repo.fullName}
+                  ${repo.language ? ` (${repo.language})` : ""}
+                  ${repo.stars ? ` ⭐ ${repo.stars}` : ""}
+                </option>
+              `
+                )
+                .join("")}
+            </select>
+            <button id="goto-repo-btn" class="goto-repo-btn" title="선택된 저장소로 이동" onclick="goToRepository()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
           <div class="repo-info" style="margin-top: 10px; font-size: 0.9em; color: #666;">
             <div id="repo-description"></div>
           </div>

@@ -597,4 +597,52 @@ select.has-vectors {
   padding: 8px 12px;
   color: #757575;
   font-style: italic;
+}
+
+/* 저장소 이동 버튼 스타일 */
+.repository-container {
+  display: flex;
+  align-items: center;
+}
+
+.goto-repo-btn {
+  margin-left: 8px;
+  margin-right: 0px;
+  background-color: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.goto-repo-btn:hover {
+  background-color: #f0f0f0;
+  border-color: #ccc;
+}
+
+.goto-repo-btn svg {
+  color: #555;
+}
+
+.goto-repo-btn:hover svg {
+  color: #0366d6;
+}
+
+/* 사용자 정보 링크 스타일 */
+.user-info a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  margin-right: 16px;
+  transition: opacity 0.2s;
+}
+
+.user-info a:hover {
+  opacity: 0.8;
 } 

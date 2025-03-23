@@ -1137,3 +1137,27 @@ function initializeRepositorySelection(repositories) {
     }
   }
 }
+
+// GitHub 저장소로 이동하는 함수
+function goToRepository() {
+  // 저장소 값 가져오기 (검색 가능한 select 또는 기존 select에서)
+  let repository;
+  if (
+    window.searchableSelectElements &&
+    window.searchableSelectElements["repository"]
+  ) {
+    repository =
+      window.searchableSelectElements["repository"].hiddenInput.value;
+  } else {
+    repository = document.getElementById("repository").value;
+  }
+
+  // 저장소가 선택되지 않았으면 알림
+  if (!repository) {
+    alert("저장소를 선택해주세요.");
+    return;
+  }
+
+  // GitHub 저장소 페이지로 이동
+  window.open(`https://github.com/${repository}`, "_blank");
+}
