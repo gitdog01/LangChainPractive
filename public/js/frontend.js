@@ -58,7 +58,6 @@ document.addEventListener("DOMContentLoaded", function () {
   if (recommendBtn) {
     recommendBtn.disabled = true;
     recommendBtn.classList.add("disabled");
-    recommendBtn.querySelector(".label").style.display = "none";
   }
 
   if (refreshBtn) {
@@ -1202,14 +1201,58 @@ function updateButtonStates(hasVectors) {
   const recommendButton = document.getElementById("recommend-btn");
   const refreshButton = document.getElementById("refresh-btn");
   const disconnectButton = document.getElementById("disconnect-btn");
+  const requestTextarea = document.getElementById("request");
 
-  if (recommendButton && refreshButton && disconnectButton) {
+  if (recommendButton && refreshButton && disconnectButton && requestTextarea) {
     if (hasVectors) {
       // 벡터 데이터가 있는 경우
-      // 코드 추천 버튼 활성화
-      recommendButton.disabled = false;
-      recommendButton.classList.remove("disabled");
-      recommendButton.querySelector(".label").style.display = "block";
+      // 요청 textarea 활성화
+      requestTextarea.disabled = false;
+
+      // 입력 상태에 따라 코드 추천 버튼 활성화/비활성화
+      const hasInput = requestTextarea.value.trim().length > 0;
+
+      if (hasInput) {
+        // 텍스트가 있는 경우 버튼 활성화
+        recommendButton.disabled = false;
+        recommendButton.classList.remove("disabled");
+        recommendButton.classList.add("active");
+      } else {
+        // 텍스트가 없는 경우 버튼 비활성화
+        recommendButton.disabled = true;
+        recommendButton.classList.add("disabled");
+        recommendButton.classList.remove("active");
+      }
+
+      // 텍스트 영역 입력 이벤트 처리
+      if (!requestTextarea.hasInputListener) {
+        requestTextarea.addEventListener("input", function () {
+          const hasInput = this.value.trim().length > 0;
+          if (hasInput) {
+            recommendButton.disabled = false;
+            recommendButton.classList.remove("disabled");
+            recommendButton.classList.add("active");
+          } else {
+            recommendButton.disabled = true;
+            recommendButton.classList.add("disabled");
+            recommendButton.classList.remove("active");
+          }
+        });
+        requestTextarea.hasInputListener = true;
+      }
+
+      // 이전 호버 리스너 제거 (이제 CSS로 처리)
+      if (recommendButton.hasHoverListeners) {
+        recommendButton.removeEventListener(
+          "mouseenter",
+          recommendButton.mouseenterListener
+        );
+        recommendButton.removeEventListener(
+          "mouseleave",
+          recommendButton.mouseleaveListener
+        );
+        recommendButton.hasHoverListeners = false;
+      }
 
       // 벡터 저장소 갱신 버튼 - 애니메이션 제거 & 호버 시에만 레이블 표시되도록
       refreshButton.classList.remove("pulse-animation");
@@ -1219,10 +1262,13 @@ function updateButtonStates(hasVectors) {
       disconnectButton.classList.remove("disabled");
     } else {
       // 벡터 데이터가 없는 경우
+      // 요청 textarea 비활성화
+      requestTextarea.disabled = true;
+
       // 코드 추천 버튼 비활성화
       recommendButton.disabled = true;
       recommendButton.classList.add("disabled");
-      recommendButton.querySelector(".label").style.display = "none";
+      recommendButton.classList.remove("active");
 
       // 벡터 저장소 갱신 버튼 - 항상 레이블 표시 & 애니메이션 적용
       refreshButton.classList.add("pulse-animation");

@@ -101,15 +101,6 @@ button:hover {
   flex-shrink: 0;
 }
 
-/* 코드 추천 버튼 스타일 */
-.recommend-btn {
-  background-color: #4caf50;
-}
-
-.recommend-btn:hover {
-  background-color: #45a049;
-}
-
 /* 아이콘 공통 스타일 */
 .recommend-btn .icon, .refresh-btn .icon, .disconnect-btn .icon {
   margin-right: 8px;
@@ -137,6 +128,51 @@ button:hover {
   height: 16px;
 }
 
+/* 코드 추천 버튼 스타일 */
+.recommend-btn {
+  background-color: #4caf50;
+  transition: all 0.3s ease;
+  width: 36px;
+  min-width: 36px;
+  justify-content: center;
+  padding: 10px;
+  position: relative;
+}
+
+.recommend-btn:hover, .recommend-btn.active {
+  background-color: #45a049;
+  width: 180px;
+  padding: 10px 15px;
+  justify-content: flex-start;
+}
+
+.recommend-btn .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0;
+  transition: margin 0.3s ease;
+}
+
+.recommend-btn:hover .icon, .recommend-btn.active .icon {
+  margin-right: 8px;
+}
+
+.recommend-btn .label {
+  position: absolute;
+  left: 36px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.recommend-btn:hover .label, .recommend-btn.active .label {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+  margin-left: 0;
+}
+
 /* disabled 상태일 때 스타일 */
 .recommend-btn.disabled {
   background-color: #ccc;
@@ -146,16 +182,29 @@ button:hover {
   justify-content: center;
 }
 
+.recommend-btn.disabled:hover {
+  width: 36px;
+  padding: 10px;
+  background-color: #ccc;
+  justify-content: center;
+}
+
 .recommend-btn.disabled .label {
   opacity: 0;
-  width: 0;
-  display: none;
+  visibility: hidden;
+}
+
+.recommend-btn.disabled:hover .label {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .recommend-btn.disabled .icon {
   margin-right: 0;
-  display: flex;
-  justify-content: center;
+}
+
+.recommend-btn.disabled:hover .icon {
+  margin-right: 0;
 }
 
 /* 벡터 저장소 갱신 버튼 - 연동된 상태 */
@@ -168,21 +217,20 @@ button:hover {
 
 .refresh-btn:not(.pulse-animation) .icon {
   margin-right: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  transition: margin 0.3s ease;
 }
 
 .refresh-btn:not(.pulse-animation) .label {
   opacity: 0;
   width: 0;
   transition: opacity 0.3s ease, width 0.3s ease;
-  display: none;
+  overflow: hidden;
 }
 
 .refresh-btn:not(.pulse-animation):hover {
   width: 180px;
   padding: 10px 15px;
+  justify-content: flex-start;
 }
 
 .refresh-btn:not(.pulse-animation):hover .icon {
@@ -192,7 +240,6 @@ button:hover {
 .refresh-btn:not(.pulse-animation):hover .label {
   opacity: 1;
   width: auto;
-  display: inline-flex;
 }
 
 /* 벡터 저장소 갱신 버튼 - 연동 안 된 상태일 때 */
@@ -230,14 +277,13 @@ button:hover {
 .disconnect-btn .icon {
   margin-right: 0;
   transition: margin 0.3s ease;
-  display: flex;
-  justify-content: center;
 }
 
 .disconnect-btn .label {
   opacity: 0;
   width: 0;
   transition: opacity 0.3s ease, width 0.3s ease;
+  overflow: hidden;
 }
 
 .disconnect-btn:hover {
