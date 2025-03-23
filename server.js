@@ -101,7 +101,7 @@ passport.use(
           id: profile.id,
           username: profile.username,
           displayName: profile.displayName,
-          avatarUrl: profile.photos[0].value,
+          avatar: profile.photos[0].value,
           repositories,
           accessToken,
         };
