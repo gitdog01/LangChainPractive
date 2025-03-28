@@ -794,7 +794,7 @@ async function getCodeRecommendation() {
       // 각 모델별 결과 처리
       data.modelResults.forEach((result) => {
         const modelName = result.modelName;
-        const tabContent = document.getElementById("tab-" + modelName);
+        const tabContent = document.getElementById(`tab-${modelName}`);
         const loadingDiv = tabContent.querySelector(".loading");
         const contentDiv = tabContent.querySelector(".content");
 
@@ -820,10 +820,14 @@ async function getCodeRecommendation() {
           timeDiv.textContent = "생성 시간: " + new Date().toLocaleTimeString();
           contentDiv.appendChild(timeDiv);
 
-          // 코드 블록 향상 처리
-          setTimeout(function () {
-            enhanceCodeBlocks(contentDiv);
-          }, 100);
+          // 코드 블록 향상 처리 (즉시 실행)
+          enhanceCodeBlocks(contentDiv);
+
+          // 해당 탭을 활성화
+          const tabButton = document.querySelector(`[data-tab="${modelName}"]`);
+          if (tabButton) {
+            tabButton.click();
+          }
         }
       });
 
@@ -1755,4 +1759,172 @@ function getCodeMirrorMode(lang) {
   };
 
   return modeMap[lang] || "javascript";
+}
+
+// 코드 추천 결과 적용 함수
+async function applyRecommendation(modelName) {
+  try {
+    // 저장소 값 가져오기
+    let repository;
+    if (
+      window.searchableSelectElements &&
+      window.searchableSelectElements["repository"]
+    ) {
+      repository =
+        window.searchableSelectElements["repository"].hiddenInput.value;
+    } else {
+      repository = document.getElementById("repository").value;
+    }
+
+    if (!repository) {
+      alert("저장소를 선택해주세요.");
+      return;
+    }
+
+    // 선택된 모델의 추천 결과 가져오기
+    const tabContent = document.getElementById(`tab-${modelName}`);
+    const contentDiv = tabContent.querySelector(".content");
+    const recommendation = contentDiv.textContent;
+
+    if (!recommendation || recommendation.includes("여기에")) {
+      alert("유효한 코드 추천 결과가 없습니다.");
+      return;
+    }
+
+    // diff 형식으로 변환
+    let formattedDiff = "";
+
+    // 파일 경로와 내용 추출 (한글 '파일:'도 인식)
+    const fileMatch = recommendation.match(/(?:File:|파일:)\s*([^\n]+)/);
+    if (!fileMatch) {
+      console.log("파일 경로를 찾을 수 없습니다:", recommendation);
+      alert("코드 추천 결과에서 파일 경로를 찾을 수 없습니다.");
+      return;
+    }
+
+    let filePath = fileMatch[1].trim();
+
+    // 라인 범위 추출
+    const lineRangeMatch = filePath.match(/\(lines\s+(\d+)-(\d+)\)/);
+    if (lineRangeMatch) {
+      filePath = filePath.replace(/\(lines\s+\d+-\d+\)/, "").trim();
+    }
+
+    // 파일 내용 추출
+    const contentMatch = recommendation.match(/```(?:diff)?\n([\s\S]*?)```/);
+    if (!contentMatch) {
+      console.log("코드 블록을 찾을 수 없습니다:", recommendation);
+      alert("코드 추천 결과에서 코드 블록을 찾을 수 없습니다.");
+      return;
+    }
+
+    let content = contentMatch[1].trim();
+
+    // 불필요한 문자 제거
+    content = content
+      .replace(/[─\s]+/g, "")
+      .replace(/설명:.*$/gm, "")
+      .replace(/^x\d+\s*/gm, "")
+      .trim();
+
+    if (!content) {
+      console.log("변경할 내용이 없습니다:", recommendation);
+      alert("코드 추천 결과에 변경할 내용이 없습니다.");
+      return;
+    }
+
+    const lines = content.split("\n");
+
+    // diff 형식으로 변환
+    formattedDiff += `diff --git a/${filePath} b/${filePath}\n`;
+    formattedDiff += `index 0000000..0000000 100644\n`;
+    formattedDiff += `--- a/${filePath}\n`;
+    formattedDiff += `+++ b/${filePath}\n`;
+
+    // 라인 수 계산
+    const lineCount = lines.length;
+    formattedDiff += `@@ -1,${lineCount} +1,${lineCount} @@\n`;
+
+    // 각 라인을 diff 형식으로 변환
+    lines.forEach((line) => {
+      if (line.trim()) {
+        formattedDiff += `+${line}\n`;
+      } else {
+        formattedDiff += "\n";
+      }
+    });
+
+    formattedDiff += "\n";
+
+    // diff 형식 확인
+    const hasDiffFormat =
+      formattedDiff.includes("diff --git") &&
+      formattedDiff.includes("+++") &&
+      formattedDiff.includes("---") &&
+      formattedDiff.match(/^@@ -\d+,\d+ \+\d+,\d+ @@/m);
+
+    if (!hasDiffFormat) {
+      console.log("diff 형식 검증 실패. 추천 결과:", recommendation);
+      console.log("변환된 diff:", formattedDiff);
+      alert(
+        "코드 추천 결과를 diff 형식으로 변환할 수 없습니다. 추천 결과를 확인해주세요."
+      );
+      return;
+    }
+
+    // 적용 확인
+    if (!confirm("이 코드 추천을 저장소에 적용하시겠습니까?")) {
+      return;
+    }
+
+    // 로딩 상태 표시
+    const applyButton = document.getElementById(`apply-${modelName}`);
+    if (applyButton) {
+      applyButton.disabled = true;
+      applyButton.innerHTML =
+        '<span class="loading-spinner"></span> 적용 중...';
+    }
+
+    // 서버에 변경사항 적용 요청
+    const response = await fetch("/api/apply-recommendation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repository,
+        recommendation: formattedDiff,
+        modelName,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert(
+        `변경사항이 성공적으로 적용되었습니다.\n\n변경된 파일:\n${result.changes.join(
+          "\n"
+        )}`
+      );
+
+      // GitHub 저장소 페이지로 이동
+      if (confirm("GitHub 저장소 페이지로 이동하시겠습니까?")) {
+        window.open(`https://github.com/${repository}`, "_blank");
+      }
+    } else {
+      throw new Error(
+        result.message || "변경사항 적용 중 오류가 발생했습니다."
+      );
+    }
+  } catch (error) {
+    console.error("코드 추천 적용 중 오류:", error);
+    alert(`오류가 발생했습니다: ${error.message}`);
+  } finally {
+    // 버튼 상태 복구
+    const applyButton = document.getElementById(`apply-${modelName}`);
+    if (applyButton) {
+      applyButton.disabled = false;
+      applyButton.innerHTML = '<span class="icon">💾</span> 변경사항 적용';
+    }
+  }
 }
