@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getCodeRecommendation,
   refreshVectorStore,
+  applyCodeRecommendation,
 } = require("../services/codeService");
 const { authenticateUser } = require("../middleware/auth");
 const { vectorizeRepository } = require("../utils/githubUtils");
@@ -212,6 +213,37 @@ router.post("/disconnect-vector-store", authenticateUser, async (req, res) => {
       success: false,
       message: "벡터 저장소 연동 해제 중 오류가 발생했습니다.",
       error: error.message,
+    });
+  }
+});
+
+// 코드 추천 결과 적용 API
+router.post("/apply-recommendation", authenticateUser, async (req, res) => {
+  try {
+    const { repository, recommendation, modelName } = req.body;
+    const userId = req.user.githubId;
+    const accessToken = req.user.accessToken;
+
+    if (!repository || !recommendation || !modelName) {
+      return res.status(400).json({
+        success: false,
+        message: "필수 파라미터가 누락되었습니다.",
+      });
+    }
+
+    const result = await applyCodeRecommendation(
+      userId,
+      repository,
+      recommendation,
+      accessToken
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error("코드 추천 적용 API 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "코드 추천 적용 중 오류가 발생했습니다.",
     });
   }
 });

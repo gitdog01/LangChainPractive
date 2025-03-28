@@ -143,27 +143,9 @@ const getLoggedInTemplate = (user) => {
               <button class="tab-btn" data-tab="gpt-o3-mini">GPT-o3-mini</button>
               <button class="tab-btn" data-tab="gpt-o1">GPT-o1</button>
             </div>
-            <div id="tab-gpt-4o" class="tab-content active markdown">
-              <div class="loading" style="display: none;">
-                <div class="loading-spinner"></div>
-                <p>GPT-4o 모델로 코드 추천 생성 중...</p>
-              </div>
-              <div class="content">여기에 GPT-4o 코드 추천이 표시됩니다...</div>
-            </div>
-            <div id="tab-gpt-o3-mini" class="tab-content markdown">
-              <div class="loading" style="display: none;">
-                <div class="loading-spinner"></div>
-                <p>GPT-o3-mini 모델로 코드 추천 생성 중...</p>
-              </div>
-              <div class="content">여기에 GPT-o3-mini 코드 추천이 표시됩니다...</div>
-            </div>
-            <div id="tab-gpt-o1" class="tab-content markdown">
-              <div class="loading" style="display: none;">
-                <div class="loading-spinner"></div>
-                <p>GPT-o1 모델로 코드 추천 생성 중...</p>
-              </div>
-              <div class="content">여기에 GPT-o1 코드 추천이 표시됩니다...</div>
-            </div>
+            ${createTabContent("gpt-4o")}
+            ${createTabContent("gpt-o3-mini")}
+            ${createTabContent("gpt-o1")}
           </div>
           
           <h3>관련 파일</h3>
@@ -282,27 +264,9 @@ const getLoggedInTemplate = (user) => {
             <button class="tab-btn" data-tab="gpt-o3-mini">GPT-o3-mini</button>
             <button class="tab-btn" data-tab="gpt-o1">GPT-o1</button>
           </div>
-          <div id="tab-gpt-4o" class="tab-content active markdown">
-            <div class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>GPT-4o 모델로 코드 추천 생성 중...</p>
-            </div>
-            <div class="content">여기에 GPT-4o 코드 추천이 표시됩니다...</div>
-          </div>
-          <div id="tab-gpt-o3-mini" class="tab-content markdown">
-            <div class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>GPT-o3-mini 모델로 코드 추천 생성 중...</p>
-            </div>
-            <div class="content">여기에 GPT-o3-mini 코드 추천이 표시됩니다...</div>
-          </div>
-          <div id="tab-gpt-o1" class="tab-content markdown">
-            <div class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>GPT-o1 모델로 코드 추천 생성 중...</p>
-            </div>
-            <div class="content">여기에 GPT-o1 코드 추천이 표시됩니다...</div>
-          </div>
+          ${createTabContent("gpt-4o")}
+          ${createTabContent("gpt-o3-mini")}
+          ${createTabContent("gpt-o1")}
         </div>
         
         <h3>관련 파일</h3>
@@ -317,6 +281,25 @@ const getLoginTemplate = () => `
   <a href="/auth/github" class="github-btn">GitHub로 로그인</a>
 </div>
 `;
+
+// 탭 컨텐츠 템플릿 생성 함수
+function createTabContent(modelName) {
+  return `
+    <div id="tab-${modelName}" class="tab-content markdown">
+      <div class="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>${modelName} 모델로 코드 추천 생성 중...</p>
+      </div>
+      <div class="content">여기에 ${modelName} 코드 추천이 표시됩니다...</div>
+      <div class="apply-container">
+        <button id="apply-${modelName}" class="apply-btn" onclick="applyRecommendation('${modelName}')">
+          <span class="icon">💾</span>
+          <span class="label">변경사항 적용</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
 
 module.exports = {
   getMainTemplate,

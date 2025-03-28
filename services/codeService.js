@@ -1,5 +1,8 @@
 const { searchAndGenerate } = require("../services/vectorStoreService");
-const { vectorizeRepository } = require("../utils/githubUtils");
+const {
+  vectorizeRepository,
+  commitFileChanges,
+} = require("../utils/githubUtils");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { ChatOpenAI } = require("@langchain/openai");
 const { RunnableSequence } = require("@langchain/core/runnables");
@@ -198,9 +201,123 @@ async function refreshVectorStore(userId, chunkSize, chunkOverlap, repository) {
   }
 }
 
+// diff 형식의 코드를 실제 변경사항으로 변환하는 함수
+function parseDiffToChanges(diffText) {
+  const changes = [];
+  const fileChanges = diffText.split(/```diff/).filter(Boolean);
+
+  for (const fileChange of fileChanges) {
+    try {
+      // 파일 경로와 라인 범위 추출
+      const fileMatch = fileChange.match(/^(.+?)\s+\(lines\s+(\d+)-(\d+)\)/);
+      if (!fileMatch) {
+        console.log("파일 경로와 라인 범위를 찾을 수 없습니다:", fileChange);
+        continue;
+      }
+
+      const filePath = fileMatch[1].trim();
+      const startLine = parseInt(fileMatch[2]);
+      const endLine = parseInt(fileMatch[3]);
+
+      // diff 헤더에서 원본 라인 정보 추출
+      const headerMatch = fileChange.match(/@@ -(\d+),\d+ \+(\d+),\d+ @@/);
+      if (!headerMatch) {
+        console.log("diff 헤더를 찾을 수 없습니다:", fileChange);
+        continue;
+      }
+
+      const originalStartLine = parseInt(headerMatch[1]);
+      const newStartLine = parseInt(headerMatch[2]);
+
+      // 변경된 내용 추출
+      const lines = fileChange.split("\n");
+      let content = "";
+      let currentLine = newStartLine;
+      let inHunk = false;
+
+      for (const line of lines) {
+        if (line.startsWith("@@")) continue;
+        if (line.startsWith("+")) {
+          content += line.substring(1) + "\n";
+          currentLine++;
+        } else if (line.startsWith("-")) {
+          // 삭제된 라인은 무시
+          currentLine++;
+        } else if (line.startsWith(" ")) {
+          content += line.substring(1) + "\n";
+          currentLine++;
+        }
+      }
+
+      if (content.trim()) {
+        changes.push({
+          filePath,
+          content: content.trim(),
+          originalContent: null,
+        });
+      } else {
+        console.log("변경된 내용이 없습니다:", filePath);
+      }
+    } catch (error) {
+      console.error("파일 변경사항 파싱 중 오류:", error);
+      continue;
+    }
+  }
+
+  if (changes.length === 0) {
+    console.log("유효한 변경사항을 찾을 수 없습니다. diff 텍스트:", diffText);
+  }
+
+  return changes;
+}
+
+// 코드 추천 결과를 실제 변경사항으로 적용하는 함수
+async function applyCodeRecommendation(
+  userId,
+  repository,
+  recommendation,
+  accessToken
+) {
+  try {
+    console.log("코드 추천 적용 시작:", { userId, repository });
+
+    // diff 형식의 코드를 실제 변경사항으로 변환
+    const changes = parseDiffToChanges(recommendation);
+
+    if (changes.length === 0) {
+      throw new Error(
+        "유효한 변경사항을 찾을 수 없습니다. diff 형식이 올바른지 확인해주세요."
+      );
+    }
+
+    // 저장소 정보 분리
+    const [owner, repo] = repository.split("/");
+
+    // 변경사항 커밋
+    const commitMessage = "AI 코드 추천에 따른 자동 변경사항 적용";
+    const result = await commitFileChanges(
+      owner,
+      repo,
+      accessToken,
+      changes,
+      commitMessage
+    );
+
+    return {
+      success: true,
+      message: result.message,
+      changes: changes.map((change) => change.filePath),
+    };
+  } catch (error) {
+    console.error("코드 추천 적용 중 오류:", error);
+    throw error;
+  }
+}
+
 module.exports = {
   getCodeRecommendation,
   refreshVectorStore,
+  applyCodeRecommendation,
   models,
   MODEL_CONFIG,
 };

@@ -156,6 +156,92 @@ async function vectorizeRepository(
   }
 }
 
+// 파일 수정 및 커밋 함수
+async function commitFileChanges(
+  owner,
+  repo,
+  accessToken,
+  changes,
+  commitMessage
+) {
+  try {
+    console.log(`🔧 파일 변경사항 커밋 시작: ${owner}/${repo}`);
+    const octokit = new Octokit({ auth: accessToken });
+
+    // 현재 브랜치 정보 가져오기
+    const { data: defaultBranch } = await octokit.rest.repos.get({
+      owner,
+      repo,
+    });
+
+    const branch = defaultBranch.default_branch;
+
+    // 각 파일 변경사항 처리
+    for (const change of changes) {
+      const { filePath, content, originalContent } = change;
+
+      try {
+        // 파일의 현재 내용 가져오기
+        const { data: currentFile } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path: filePath,
+        });
+
+        // Base64로 인코딩된 현재 내용 디코딩
+        const currentContent = Buffer.from(
+          currentFile.content,
+          "base64"
+        ).toString("utf-8");
+
+        // 파일 내용이 변경된 경우에만 커밋
+        if (currentContent !== content) {
+          // 파일 업데이트
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: filePath,
+            message: commitMessage,
+            content: Buffer.from(content).toString("base64"),
+            sha: currentFile.sha,
+          });
+
+          console.log(`✅ 파일 업데이트 완료: ${filePath}`);
+        } else {
+          console.log(`ℹ️ 파일 변경사항 없음: ${filePath}`);
+        }
+      } catch (error) {
+        if (error.status === 404) {
+          // 파일이 존재하지 않는 경우 새로 생성
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: filePath,
+            message: commitMessage,
+            content: Buffer.from(content).toString("base64"),
+          });
+          console.log(`✅ 새 파일 생성 완료: ${filePath}`);
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    console.log(`✅ 모든 파일 변경사항 커밋 완료: ${owner}/${repo}`);
+    return {
+      success: true,
+      message: "파일 변경사항이 성공적으로 커밋되었습니다.",
+    };
+  } catch (error) {
+    console.error(
+      `❌ 파일 변경사항 커밋 중 오류 발생: ${owner}/${repo}`,
+      error
+    );
+    throw error;
+  }
+}
+
 module.exports = {
   vectorizeRepository,
+  commitFileChanges,
 };
